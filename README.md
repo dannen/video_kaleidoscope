@@ -26,6 +26,7 @@ Replace `<video_path>` with the path to the video file you want to use.
 
 The application provides the following commands and buttons:
 
+- **Playback Speed Slider**: Slider to adjust the playback speed of the video, allowing for both faster and slower playback.
 - **Reset**: Button to reset all applied effects and return the video to its original state. [![Reset Button](icons/reset_button.png)](icons/reset_button.png)
 - **Play/Pause**: Button to toggle between play and pause. [![Play Button](icons/play_button.png)](icons/play_button.png) [![Pause Button](icons/pause_button.png)](icons/pause_button.png)
 - **Stop**: Button to stop the video. [![Stop Button](icons/stop_button.png)](icons/stop_button.png)
