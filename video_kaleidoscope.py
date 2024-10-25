@@ -9,30 +9,38 @@ import numpy as np
 from PIL import Image, ImageTk
 
 LUTS = {
-    'ARCTIC': cv2.COLORMAP_WINTER,
-    'BLACKHOT': cv2.COLORMAP_JET,
+    'AUTUMN': cv2.COLORMAP_AUTUMN,
+    'BONE': cv2.COLORMAP_BONE,
     'CIVIDIS': cv2.COLORMAP_CIVIDIS,
     'COOL': cv2.COLORMAP_COOL,
-    'GLOBOW': cv2.COLORMAP_PARULA,
-    'GRADEDFIRE': cv2.COLORMAP_AUTUMN,
+    'DEEPGREEN': cv2.COLORMAP_DEEPGREEN,
     'HOT': cv2.COLORMAP_HOT,
     'HSV': cv2.COLORMAP_HSV,
     'INFERNO': cv2.COLORMAP_INFERNO,
-    'INSTALERT': cv2.COLORMAP_SUMMER,
+    'ISOTHERM_BLACKLIGHT': lambda: create_custom_lut('blacklight', 64),
     'ISOTHERM_BLUE': lambda: create_custom_lut('blue', 64),
+    'ISOTHERM_CYAN': lambda: create_custom_lut('cyan', 64),
+    'ISOTHERM_FOREST': lambda: create_custom_lut('forest', 64),
     'ISOTHERM_GREEN': lambda: create_custom_lut('green', 64),
+    'ISOTHERM_MAGENTA': lambda: create_custom_lut('magenta', 64),
+    'ISOTHERM_ORANGE': lambda: create_custom_lut('orange', 64),
+    'ISOTHERM_PURPLE': lambda: create_custom_lut('purple', 64),
     'ISOTHERM_RED': lambda: create_custom_lut('red', 64),
-    'LAVA': cv2.COLORMAP_PINK,
+    'ISOTHERM_TURQUOISE': lambda: create_custom_lut('turquoise', 64),
+    'ISOTHERM_WARM_TO_COOL': lambda: create_custom_lut('warm_to_cool', 64),
+    'ISOTHERM_YELLOW': lambda: create_custom_lut('yellow', 64),
+    'JET': cv2.COLORMAP_JET,
     'MAGMA': cv2.COLORMAP_MAGMA,
     'OCEAN': cv2.COLORMAP_OCEAN,
+    'PARULA': cv2.COLORMAP_PARULA,
     'PINK': cv2.COLORMAP_PINK,
     'PLASMA': cv2.COLORMAP_PLASMA,
     'RAINBOW': cv2.COLORMAP_RAINBOW,
-    'REDHOT': cv2.COLORMAP_HOT,
     'SPRING': cv2.COLORMAP_SPRING,
     'SUMMER': cv2.COLORMAP_SUMMER,
+    'TURBO': cv2.COLORMAP_TURBO,
     'VIRIDIS': cv2.COLORMAP_VIRIDIS,
-    'WHITEHOT': cv2.COLORMAP_BONE
+    'WINTER': cv2.COLORMAP_WINTER
 }
 
 
@@ -47,6 +55,24 @@ def create_custom_lut(color, color_gradient_step):
         gradient_colors = ((0, 64, 0), (0, 255, 0), color_gradient_step)
     elif color == 'blue':
         gradient_colors = ((64, 0, 0), (255, 0, 0), color_gradient_step)
+    elif color == 'turquoise':
+        gradient_colors = ((64, 64, 0), (255, 255, 0), color_gradient_step)
+    elif color == 'yellow':
+        gradient_colors = ((0, 32, 64), (0, 255, 255), color_gradient_step)
+    elif color == 'magenta':
+        gradient_colors = ((64, 0, 64), (255, 0, 255), color_gradient_step)
+    elif color == 'orange':
+        gradient_colors = ((0, 64, 64), (0, 128, 255), color_gradient_step)
+    elif color == 'cyan':
+        gradient_colors = ((64, 32, 0), (255, 128, 0), color_gradient_step)
+    elif color == 'purple':
+        gradient_colors = ((64, 0, 64), (255, 0, 128), color_gradient_step)
+    elif color == 'warm_to_cool':
+        gradient_colors = ((255, 0, 0), (0, 0, 255), color_gradient_step)
+    elif color == 'blacklight':
+        gradient_colors = ((0, 64, 255), (128, 0, 128), color_gradient_step)
+    elif color == 'forest':
+        gradient_colors = ((0, 128, 0), (139, 69, 19), color_gradient_step)
     else:
         raise ValueError(
             "Unsupported color for LUT creation. Supported colors are 'red', 'green', and 'blue'.")
@@ -135,6 +161,8 @@ class VideoKaleidoscope:
                 Image.open("icons/flip_horizontal.png").resize((25, 25)))
             flip_vertical_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_vertical.png").resize((25, 25)))
+            flip_inverse_icon = ImageTk.PhotoImage(
+                Image.open("icons/flip_inverse.png").resize((25, 25)))
             snapshot_icon = ImageTk.PhotoImage(Image.open("icons/snapshot_button.png").resize((25, 25)))
             mirror_left_icon = ImageTk.PhotoImage(
                 Image.open("icons/mirror_left.png").resize((25, 25)))
@@ -172,6 +200,7 @@ class VideoKaleidoscope:
         second_row_controls = [
             (flip_horizontal_icon, self.toggle_flip_horizontal),
             (flip_vertical_icon, self.toggle_flip_vertical),
+            # (flip_inverse_icon, self.toggle_flip_inverse),
             (snapshot_icon, self.snapshot),
             (reset_icon, self.reset)
         ]
@@ -313,6 +342,14 @@ class VideoKaleidoscope:
         self.attributes.flip_vertical = not self.attributes.flip_vertical
         if self.attributes.paused:
             self.apply_effects()
+    
+    def flip_inverse(self):
+        # Flip horizontally
+        self.flip_horizontal()
+        # Flip vertically
+        self.flip_vertical()
+        # Apply the effects after both flips
+        self.apply_effects()
 
     def toggle_mirror_up(self):
         self.attributes.mirror_up = not self.attributes.mirror_up
