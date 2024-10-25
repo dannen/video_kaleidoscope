@@ -200,7 +200,7 @@ class VideoKaleidoscope:
         second_row_controls = [
             (flip_horizontal_icon, self.toggle_flip_horizontal),
             (flip_vertical_icon, self.toggle_flip_vertical),
-            # (flip_inverse_icon, self.toggle_flip_inverse),
+            (flip_inverse_icon, self.toggle_flip_inverse),
             (snapshot_icon, self.snapshot),
             (reset_icon, self.reset)
         ]
@@ -343,11 +343,11 @@ class VideoKaleidoscope:
         if self.attributes.paused:
             self.apply_effects()
     
-    def flip_inverse(self):
+    def toggle_flip_inverse(self):
         # Flip horizontally
-        self.flip_horizontal()
+        self.toggle_flip_horizontal()
         # Flip vertically
-        self.flip_vertical()
+        self.toggle_flip_vertical()
         # Apply the effects after both flips
         self.apply_effects()
 
