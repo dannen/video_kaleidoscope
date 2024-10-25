@@ -1,8 +1,9 @@
 # Requires: pip install opencv-python numpy Pillow
 import sys
 from datetime import datetime
+import threading
 import tkinter as tk
-from tkinter import Scale, HORIZONTAL, OptionMenu, StringVar
+from tkinter import OptionMenu, StringVar, Toplevel, Frame, LabelFrame
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
@@ -83,9 +84,6 @@ class VideoAttributes:
         self.pan_y = 0
         self.kaleidoscope_segments = 0  # Set to 0 by default
         self.brightness = 0  # Set brightness to 0 by default
-        self.mirror_nine = False  # Added attribute for mirror_nine toggle
-        self.mirror_six = False  # Added attribute for mirror_six toggle
-        self.mirror_three = False  # Added attribute for mirror_three toggle
 
 
 class VideoKaleidoscope:
@@ -107,58 +105,49 @@ class VideoKaleidoscope:
         self.video_label.pack()
 
         # Slider for video position (seek bar)
-        self.seek_slider = Scale(self.root, from_=0, to=1000, orient=HORIZONTAL,
-                                 label="Video Position", command=self.set_video_position)
+        self.seek_slider = tk.Scale(self.root, from_=0, to=1000, orient=tk.HORIZONTAL,
+                                    label="Video Position", command=self.set_video_position)
         self.seek_slider.pack(fill=tk.X)
 
-        # Set up controls
-        self.create_controls()
+        # Set up controls in separate windows
+        self.create_control_window()
 
         # Start updating video
         self.update_video()
 
         self.root.mainloop()
 
-    def create_controls(self):
-        control_frame = tk.Frame(self.root)
-        control_frame.pack()
+    def create_control_window(self):
+        self.control_window = Toplevel(self.root)
+        self.control_window.title("Video Controls")
+        self.control_window.geometry("480x616+200+800")
+
+        # Control section for play, pause, etc.
+        controls_frame = LabelFrame(self.control_window, text="Controls")
+        controls_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
         # Load control icons (25x25 pixels) with error handling
         try:
-            play_icon = ImageTk.PhotoImage(Image.open(
-                "icons/play_button.png").resize((25, 25)))
-            pause_icon = ImageTk.PhotoImage(Image.open(
-                "icons/pause_button.png").resize((25, 25)))
-            stop_icon = ImageTk.PhotoImage(Image.open(
-                "icons/stop_button.png").resize((25, 25)))
+            play_icon = ImageTk.PhotoImage(Image.open("icons/play_button.png").resize((25, 25)))
+            pause_icon = ImageTk.PhotoImage(Image.open("icons/pause_button.png").resize((25, 25)))
+            stop_icon = ImageTk.PhotoImage(Image.open("icons/stop_button.png").resize((25, 25)))
             flip_horizontal_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_horizontal.png").resize((25, 25)))
             flip_vertical_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_vertical.png").resize((25, 25)))
-            mirror_up_icon = ImageTk.PhotoImage(
-                Image.open("icons/mirror_up.png").resize((25, 25)))
-            mirror_down_icon = ImageTk.PhotoImage(
-                Image.open("icons/mirror_down.png").resize((25, 25)))
-            snapshot_icon = ImageTk.PhotoImage(Image.open(
-                "icons/snapshot_button.png").resize((25, 25)))
+            snapshot_icon = ImageTk.PhotoImage(Image.open("icons/snapshot_button.png").resize((25, 25)))
             mirror_left_icon = ImageTk.PhotoImage(
                 Image.open("icons/mirror_left.png").resize((25, 25)))
             mirror_right_icon = ImageTk.PhotoImage(
                 Image.open("icons/mirror_right.png").resize((25, 25)))
-            exit_icon = ImageTk.PhotoImage(Image.open(
-                "icons/exit_button.png").resize((25, 25)))
-            zoom_in_icon = ImageTk.PhotoImage(
-                Image.open("icons/zoom_in.png").resize((25, 25)))
-            zoom_out_icon = ImageTk.PhotoImage(
-                Image.open("icons/zoom_out.png").resize((25, 25)))
-            frame_forward_icon = ImageTk.PhotoImage(
-                Image.open("icons/frame_forward.png").resize((25, 25)))
-            frame_reverse_icon = ImageTk.PhotoImage(
-                Image.open("icons/frame_reverse.png").resize((25, 25)))
-            faster_icon = ImageTk.PhotoImage(
-                Image.open("icons/faster.png").resize((25, 25)))
-            slower_icon = ImageTk.PhotoImage(
-                Image.open("icons/slower.png").resize((25, 25)))
+            mirror_up_icon = ImageTk.PhotoImage(
+                Image.open("icons/mirror_up.png").resize((25, 25)))
+            mirror_down_icon = ImageTk.PhotoImage(
+                Image.open("icons/mirror_down.png").resize((25, 25)))
+            exit_icon = ImageTk.PhotoImage(Image.open("icons/exit_button.png").resize((25, 25)))
+            reset_icon = ImageTk.PhotoImage(Image.open("icons/reset_button.png").resize((25, 25)))
+            reverse_playback_icon = ImageTk.PhotoImage(
+                Image.open("icons/reverse_playback.png").resize((25, 25)))
             pan_up_icon = ImageTk.PhotoImage(
                 Image.open("icons/pan_up.png").resize((25, 25)))
             pan_down_icon = ImageTk.PhotoImage(
@@ -169,10 +158,6 @@ class VideoKaleidoscope:
                 Image.open("icons/pan_right.png").resize((25, 25)))
             pan_center_icon = ImageTk.PhotoImage(
                 Image.open("icons/pan_center.png").resize((25, 25)))
-            reverse_playback_icon = ImageTk.PhotoImage(
-                Image.open("icons/reverse_playback.png").resize((25, 25)))
-            reset_icon = ImageTk.PhotoImage(Image.open(
-                "icons/reset_button.png").resize((25, 25)))
         except FileNotFoundError as e:
             print(f"Error: {e}")
             sys.exit(1)
@@ -193,94 +178,72 @@ class VideoKaleidoscope:
         third_row_controls = [
             (mirror_up_icon, self.toggle_mirror_up),
             (mirror_down_icon, self.toggle_mirror_down),
-            (mirror_right_icon, lambda: self.toggle_mirror_level('right')),
-            (mirror_left_icon, lambda: self.toggle_mirror_level('left'))
-        ]
-        fourth_row_controls = [
-            (faster_icon, lambda: self.set_playback_speed(
-                self.attributes.playback_speed * 2)),
-            (slower_icon, lambda: self.set_playback_speed(
-                self.attributes.playback_speed / 2)),
-            (zoom_in_icon, lambda: self.set_zoom_factor(
-                self.attributes.zoom_factor + 0.1)),
-            (zoom_out_icon, lambda: self.set_zoom_factor(
-                self.attributes.zoom_factor - 0.1))
-        ]
-        fifth_row_controls = [
-            (pan_up_icon, lambda: self.pan_video(0, -10)),
-            (pan_down_icon, lambda: self.pan_video(0, 10)),
-            (pan_left_icon, lambda: self.pan_video(-10, 0)),
-            (pan_right_icon, lambda: self.pan_video(10, 0)),
-            (pan_center_icon, self.center_pan)
-        ]
-        mirror_row_controls = [
-            (tk.Button(control_frame, text="Mirror Nine", command=self.toggle_mirror_nine), 0),
-            (tk.Button(control_frame, text="Mirror Six", command=self.toggle_mirror_six), 1),
-            (tk.Button(control_frame, text="Mirror Three", command=self.toggle_mirror_three), 2)
+            (mirror_left_icon, lambda: self.toggle_mirror_level('left')),
+            (mirror_right_icon, lambda: self.toggle_mirror_level('right'))
         ]
 
         # Add top row controls
         for idx, (icon, command) in enumerate(top_row_controls):
-            tk.Button(control_frame, image=icon,
-                      command=command).grid(row=0, column=idx)
+            tk.Button(controls_frame, image=icon, command=command).grid(row=0, column=idx, padx=5, pady=5, sticky='ew')
 
         # Add second row controls
         for idx, (icon, command) in enumerate(second_row_controls):
-            tk.Button(control_frame, image=icon,
-                      command=command).grid(row=1, column=idx)
+            tk.Button(controls_frame, image=icon, command=command).grid(row=1, column=idx, padx=5, pady=5)
 
-        # Add third row controls
+        # Add third row controls for mirror buttons
         for idx, (icon, command) in enumerate(third_row_controls):
-            tk.Button(control_frame, image=icon,
-                      command=command).grid(row=2, column=idx)
+            tk.Button(controls_frame, image=icon, command=command).grid(row=2, column=idx, padx=5, pady=5)
 
-        # Add fourth row controls
-        for idx, (icon, command) in enumerate(fourth_row_controls):
-            tk.Button(control_frame, image=icon,
-                      command=command).grid(row=3, column=idx)
+        # Sliders section
+        sliders_frame = LabelFrame(self.control_window, text="Adjustments")
+        sliders_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
-        # Add fifth row controls
-        for idx, (icon, command) in enumerate(fifth_row_controls):
-            tk.Button(control_frame, image=icon,
-                      command=command).grid(row=4, column=idx)
+        # Slider for rotation angle
+        self.rotation_slider = tk.Scale(sliders_frame, from_=0, to=359.5, orient=tk.VERTICAL,
+                                        resolution=0.5, label="Rot", command=lambda x: self.set_rotation_angle(float(x)), )
+        self.rotation_slider.grid(row=0, column=0, sticky="nswe", padx=10, pady=5)
 
-        # Add mirror row controls
-        for btn, column in mirror_row_controls:
-            btn.grid(row=9, column=column, columnspan=1, sticky="we")
+        self.zoom_slider = tk.Scale(sliders_frame, from_=1, to=50, orient=tk.VERTICAL,
+                                    label="Zoom", command=lambda x: self.set_zoom_factor(float(x) / 10), )
+        self.zoom_slider.grid(row=0, column=1, sticky="nswe", padx=10, pady=5)
+
+        self.playback_speed_slider = tk.Scale(sliders_frame, from_=4.0, to=-4.0, orient=tk.VERTICAL,
+                                              label="Speed", command=lambda x: self.set_playback_speed(float(x)))
+        self.playback_speed_slider.grid(row=0, column=2, sticky="nswe", padx=10, pady=5)
+
+        self.brightness_slider = tk.Scale(sliders_frame, from_=4, to=-4, orient=tk.VERTICAL,
+                                          label="Bright", command=lambda x: self.set_brightness(int(x)))
+        self.brightness_slider.grid(row=0, column=3, sticky="nswe", padx=10, pady=5)
+
+        # Kaleidoscope and LUT section
+        kaleidoscope_frame = LabelFrame(self.control_window, text="Effects")
+        kaleidoscope_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
+
+        self.kaleidoscope_slider = tk.Scale(kaleidoscope_frame, from_=0, to=12, orient=tk.HORIZONTAL,
+                                            label="Kaleidoscope", command=lambda x: self.set_kaleidoscope_segments(int(x)))
+        self.kaleidoscope_slider.pack(fill=tk.X, padx=5, pady=5)
 
         # LUT selection dropdown at the bottom
-        self.lut_var = StringVar(self.root)
+        self.lut_var = StringVar(self.control_window)
         self.lut_var.set("None")  # Default value
         luts = ["None"] + sorted(list(LUTS.keys()))
-        self.lut_menu = OptionMenu(
-            self.root, self.lut_var, *luts, command=self.set_lut)
-        self.lut_menu.pack(side=tk.BOTTOM)
+        self.lut_menu = OptionMenu(kaleidoscope_frame, self.lut_var, *luts, command=self.set_lut)
+        self.lut_menu.pack(fill=tk.X, pady=5)
+
+        # Pan controls section
+        pan_frame = LabelFrame(self.control_window, text="Pan Controls")
+        pan_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
+
+        # Pan controls arranged in a plus shape
+        tk.Button(pan_frame, image=pan_up_icon, command=lambda: self.pan_video(0, -10)).grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_left_icon, command=lambda: self.pan_video(-10, 0)).grid(row=1, column=0, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_center_icon, command=self.center_pan).grid(row=1, column=1, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_right_icon, command=lambda: self.pan_video(10, 0)).grid(row=1, column=2, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_down_icon, command=lambda: self.pan_video(0, 10)).grid(row=2, column=1, padx=5, pady=5)
 
         # Keep references to the images to prevent garbage collection
-        self.icons = [icon for icon, _ in top_row_controls + second_row_controls +
-                      third_row_controls + fourth_row_controls + fifth_row_controls]
-
-        # Sliders for rotation, zoom, playback speed, brightness, and kaleidoscope segments
-        self.rotation_slider = Scale(control_frame, from_=0, to=359, orient=HORIZONTAL, label="Rotation",
-                                     command=lambda x: self.set_rotation_angle(int(x) - self.attributes.rotation_angle))
-        self.zoom_slider = Scale(control_frame, from_=1, to=50, orient=HORIZONTAL,
-                                 label="Zoom", command=lambda x: self.set_zoom_factor(float(x) / 10))
-        self.rotation_slider.grid(row=5, column=0, columnspan=2, sticky="we")
-        self.zoom_slider.grid(row=5, column=2, columnspan=2, sticky="we")
-
-        self.playback_speed_slider = Scale(control_frame, from_=-4.0, to=4.0, orient=HORIZONTAL,
-                                           label="Playback Speed", command=lambda x: self.set_playback_speed(float(x)))
-        self.playback_speed_slider.grid(
-            row=6, column=0, columnspan=4, sticky="we")
-
-        self.brightness_slider = Scale(control_frame, from_=-4, to=4, orient=HORIZONTAL,
-                                       label="Brightness", command=lambda x: self.set_brightness(int(x)))
-        self.brightness_slider.grid(row=7, column=0, columnspan=4, sticky="we")
-
-        self.kaleidoscope_slider = Scale(control_frame, from_=0, to=12, orient=HORIZONTAL,
-                                         label="Kaleidoscope Segments", command=lambda x: self.set_kaleidoscope_segments(int(x)))
-        self.kaleidoscope_slider.grid(
-            row=8, column=0, columnspan=4, sticky="we")
+        self.icons = [icon for icon, _ in top_row_controls + second_row_controls + third_row_controls]
+        self.icons += [pan_up_icon, pan_down_icon, pan_left_icon, pan_right_icon, pan_center_icon]
 
     def set_video_position(self, position):
         if self.cap.isOpened():
@@ -362,8 +325,7 @@ class VideoKaleidoscope:
             self.apply_effects()
 
     def set_rotation_angle(self, angle):
-        self.attributes.rotation_angle = (
-            self.attributes.rotation_angle + angle) % 360
+        self.attributes.rotation_angle = angle % 360
         if self.attributes.paused:
             self.apply_effects()
 
@@ -419,14 +381,12 @@ class VideoKaleidoscope:
             height, width = frame.shape[:2]
 
             # Apply zoom and pan
-            center_x, center_y = width // 2 + \
-                self.attributes.pan_x, height // 2 + self.attributes.pan_y
+            center_x, center_y = width // 2 + self.attributes.pan_x, height // 2 + self.attributes.pan_y
             new_width, new_height = int(
                 width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
             x1, y1 = max(0, center_x - new_width // 2), max(0,
                                                             center_y - new_height // 2)
-            x2, y2 = min(width, center_x + new_width //
-                         2), min(height, center_y + new_height // 2)
+            x2, y2 = min(width, center_x + new_width // 2), min(height, center_y + new_height // 2)
             frame = frame[y1:y2, x1:x2]
             frame = cv2.resize(frame, (width, height))
 
@@ -498,8 +458,8 @@ class VideoKaleidoscope:
             # Save the processed frame as an image file
             timestamp = datetime.now().strftime('%Y%m%d%M%S')
             filename = f'snapshot-{timestamp}.png'
-            cv2.imwrite(filename, frame)
-            print(f'Snapshot saved as {filename}')
+            threading.Thread(target=cv2.imwrite, args=(filename, frame)).start()
+            print(f'Snapshot saving in progress as {filename}')
 
     def frame_forward(self):
         if self.cap.isOpened():
@@ -531,24 +491,25 @@ class VideoKaleidoscope:
             frame = self.current_frame.copy()
             height, width = frame.shape[:2]
 
+            # Resize frame for display if larger than 800x600
+            if width > 800 or height > 600:
+                display_width, display_height = 800, 600
+                frame = cv2.resize(frame, (display_width, display_height))
+            else:
+                display_width, display_height = width, height
+
             # Apply zoom and pan
-            center_x, center_y = width // 2 + \
-                self.attributes.pan_x, height // 2 + self.attributes.pan_y
-            new_width, new_height = int(
-                width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
-            x1, y1 = max(0, center_x - new_width // 2), max(0,
-                                                            center_y - new_height // 2)
-            x2, y2 = min(width, center_x + new_width //
-                         2), min(height, center_y + new_height // 2)
+            center_x, center_y = width // 2 + self.attributes.pan_x, height // 2 + self.attributes.pan_y
+            new_width, new_height = int(width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
+            x1, y1 = max(0, center_x - new_width // 2), max(0, center_y - new_height // 2)
+            x2, y2 = min(width, center_x + new_width // 2), min(height, center_y + new_height // 2)
             frame = frame[y1:y2, x1:x2]
-            frame = cv2.resize(frame, (width, height))
+            frame = cv2.resize(frame, (display_width, display_height))
 
             # Apply rotation
             if self.attributes.rotation_angle != 0:
-                matrix = cv2.getRotationMatrix2D(
-                    (width // 2, height // 2), self.attributes.rotation_angle, 1)
-                frame = cv2.warpAffine(
-                    frame, matrix, (width, height), borderMode=cv2.BORDER_REFLECT)
+                matrix = cv2.getRotationMatrix2D((display_width // 2, display_height // 2), self.attributes.rotation_angle, 1)
+                frame = cv2.warpAffine(frame, matrix, (display_width, display_height), borderMode=cv2.BORDER_REFLECT)
 
             # Apply flip
             if self.attributes.flip_horizontal:
@@ -557,23 +518,21 @@ class VideoKaleidoscope:
                 frame = cv2.flip(frame, 0)
 
             # Apply brightness adjustment
-            frame = cv2.convertScaleAbs(
-                frame, alpha=1, beta=self.attributes.brightness * 25)
+            frame = cv2.convertScaleAbs(frame, alpha=1, beta=self.attributes.brightness * 25)
 
             # Apply mirror effects for the left side
             if self.attributes.mirror_left_level == 1:
-                left_half = frame[:, :width // 2]
-                frame[:, width // 2:] = cv2.flip(left_half, 1)
+                left_half = frame[:, :frame.shape[1] // 2]
+                frame[:, frame.shape[1] // 2:] = cv2.flip(left_half, 1)
             elif self.attributes.mirror_left_level == 2:
-                third_width = width // 3
+                third_width = frame.shape[1] // 3
                 left = frame[:, :third_width]
                 right = frame[:, 2 * third_width:]
                 min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width +
-                      min_width] = cv2.flip(left[:, :min_width], 1)
+                frame[:, third_width:third_width + min_width] = cv2.flip(left[:, :min_width], 1)
                 frame[:, :min_width] = cv2.flip(right[:, :min_width], 1)
             elif self.attributes.mirror_left_level == 3:
-                quarter_width = width // 4
+                quarter_width = frame.shape[1] // 4
                 for i in range(4):
                     if i % 2 == 0:
                         frame[:, i * quarter_width:(i + 1) * quarter_width] = cv2.flip(
@@ -581,19 +540,17 @@ class VideoKaleidoscope:
 
             # Apply mirror effects for the right side
             if self.attributes.mirror_right_level == 1:
-                right_half = frame[:, width // 2:]
-                frame[:, :width // 2] = cv2.flip(right_half, 1)
+                right_half = frame[:, frame.shape[1] // 2:]
+                frame[:, :frame.shape[1] // 2] = cv2.flip(right_half, 1)
             elif self.attributes.mirror_right_level == 2:
-                third_width = width // 3
+                third_width = frame.shape[1] // 3
                 left = frame[:, :third_width]
                 right = frame[:, 2 * third_width:]
                 min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width +
-                      min_width] = cv2.flip(right[:, :min_width], 1)
-                frame[:, 2 * third_width:2 * third_width +
-                      min_width] = cv2.flip(left[:, :min_width], 1)
+                frame[:, third_width:third_width + min_width] = cv2.flip(right[:, :min_width], 1)
+                frame[:, 2 * third_width:2 * third_width + min_width] = cv2.flip(left[:, :min_width], 1)
             elif self.attributes.mirror_right_level == 3:
-                quarter_width = width // 4
+                quarter_width = frame.shape[1] // 4
                 for i in range(4):
                     if i % 2 == 1:
                         frame[:, i * quarter_width:(i + 1) * quarter_width] = cv2.flip(
@@ -601,25 +558,13 @@ class VideoKaleidoscope:
 
             # Apply mirror up effect
             if self.attributes.mirror_up:
-                top_half = frame[:height // 2, :]
-                frame[height // 2:, :] = cv2.flip(top_half, 0)
+                top_half = frame[:frame.shape[0] // 2, :]
+                frame[frame.shape[0] // 2:, :] = cv2.flip(top_half, 0)
 
             # Apply mirror down effect
             if self.attributes.mirror_down:
-                bottom_half = frame[height // 2:, :]
-                frame[:height // 2, :] = cv2.flip(bottom_half, 0)
-
-            # Apply mirror nine effect
-            if self.attributes.mirror_nine:
-                frame = self.apply_mirror_nine(frame)
-
-            # Apply mirror six effect
-            if self.attributes.mirror_six:
-                frame = self.apply_mirror_six(frame)
-
-            # Apply mirror three effect
-            if self.attributes.mirror_three:
-                frame = self.apply_mirror_three(frame)
+                bottom_half = frame[frame.shape[0] // 2:, :]
+                frame[:frame.shape[0] // 2, :] = cv2.flip(bottom_half, 0)
 
             # Apply kaleidoscope effect if enabled
             if self.attributes.kaleidoscope_segments > 0:
@@ -655,75 +600,6 @@ class VideoKaleidoscope:
 
         return mask
 
-    def toggle_mirror_nine(self):
-        self.attributes.mirror_nine = not self.attributes.mirror_nine
-        if self.attributes.paused:
-            self.apply_effects()
-
-    def toggle_mirror_six(self):
-        self.attributes.mirror_six = not self.attributes.mirror_six
-        if self.attributes.paused:
-            self.apply_effects()
-
-    def toggle_mirror_three(self):
-        self.attributes.mirror_three = not self.attributes.mirror_three
-        if self.attributes.paused:
-            self.apply_effects()
-
-    def apply_mirror_nine(self, frame):
-        height, width = frame.shape[:2]
-        center_x, center_y = width // 2, height // 2
-        num_mirrors = 9
-        angle_step = 360 / num_mirrors
-        mask = np.zeros_like(frame)
-
-        for i in range(num_mirrors):
-            angle = i * angle_step
-            matrix = cv2.getRotationMatrix2D((center_x, center_y), angle, 1)
-            rotated = cv2.warpAffine(frame, matrix, (width, height))
-            if i % 2 == 0:
-                rotated = cv2.flip(rotated, 1)
-            alpha = 1.0 / num_mirrors
-            mask = cv2.addWeighted(mask, 1.0, rotated, alpha, 0)
-
-        return mask
-
-    def apply_mirror_six(self, frame):
-        height, width = frame.shape[:2]
-        center_x, center_y = width // 2, height // 2
-        num_mirrors = 6
-        angle_step = 360 / num_mirrors
-        mask = np.zeros_like(frame)
-
-        for i in range(num_mirrors):
-            angle = i * angle_step
-            matrix = cv2.getRotationMatrix2D((center_x, center_y), angle, 1)
-            rotated = cv2.warpAffine(frame, matrix, (width, height))
-            if i % 2 == 0:
-                rotated = cv2.flip(rotated, 1)
-            alpha = 1.0 / num_mirrors
-            mask = cv2.addWeighted(mask, 1.0, rotated, alpha, 0)
-
-        return mask
-
-    def apply_mirror_three(self, frame):
-        height, width = frame.shape[:2]
-        center_x, center_y = width // 2, height // 2
-        num_mirrors = 3
-        angle_step = 360 / num_mirrors
-        mask = np.zeros_like(frame)
-
-        for i in range(num_mirrors):
-            angle = i * angle_step
-            matrix = cv2.getRotationMatrix2D((center_x, center_y), angle, 1)
-            rotated = cv2.warpAffine(frame, matrix, (width, height))
-            if i % 2 == 0:
-                rotated = cv2.flip(rotated, 1)
-            alpha = 1.0 / num_mirrors
-            mask = cv2.addWeighted(mask, 1.0, rotated, alpha, 0)
-
-        return mask
-
     def update_video(self):
         if self.cap.isOpened() and not self.attributes.paused:
             if self.attributes.reverse_playback_speed > 1.0:
@@ -747,7 +623,7 @@ class VideoKaleidoscope:
         self.lut_var.set("None")
         self.set_lut("None")
         # Reset all sliders to their default values
-        for slider in [self.rotation_slider, self.zoom_slider, self.playback_speed_slider, self.brightness_slider, self.kaleidoscope_slider]:
+        for slider in [self.zoom_slider, self.playback_speed_slider, self.brightness_slider, self.kaleidoscope_slider, self.rotation_slider]:
             slider.set(0 if slider.cget("label") != "Zoom" else 1)
         if self.attributes.paused:
             self.apply_effects()
@@ -786,11 +662,8 @@ if __name__ == "__main__":
         print("  Rotation Slider: Slider to adjust the rotation angle")
         print("  Zoom Slider: Slider to adjust the zoom level")
         print("  Brightness Slider: Slider to adjust the brightness level")
-        print("  Kaleidoscope Segments Slider: Slider to adjust the number of kaleidoscope segments")
-        print("  Mirror Nine: Button to apply a nine-part mirror effect")
-        print("  Mirror Six: Button to apply a six-part mirror effect")
-        print("  Mirror Three: Button to apply a three-part mirror effect")
+        print("  Kaleidoscope Segments: Slider to adjust the number of kaleidoscope segments")
         sys.exit(1)
-
-    video_path = sys.argv[1]
-    vk = VideoKaleidoscope(video_path)
+    else:
+        video_path = sys.argv[1]
+        VideoKaleidoscope(video_path)
