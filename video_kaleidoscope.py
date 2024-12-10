@@ -7,6 +7,8 @@ from tkinter import OptionMenu, StringVar, Toplevel, Frame, LabelFrame
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
+import os
+import ast
 
 LUTS = {
     'AUTUMN': cv2.COLORMAP_AUTUMN,
@@ -39,9 +41,38 @@ LUTS = {
     'SPRING': cv2.COLORMAP_SPRING,
     'SUMMER': cv2.COLORMAP_SUMMER,
     'TURBO': cv2.COLORMAP_TURBO,
+    'TWILIGHT': cv2.COLORMAP_TWILIGHT,
     'VIRIDIS': cv2.COLORMAP_VIRIDIS,
     'WINTER': cv2.COLORMAP_WINTER
 }
+
+# Load custom LUTs from a directory
+lut_directory = "./luts"
+for filename in os.listdir(lut_directory):
+    if filename.endswith('.lut'):
+        filepath = os.path.join(lut_directory, filename)
+        try:
+            with open(filepath, 'r') as f:
+                # Expect the file to contain only a list of tuples
+                lut_data = f.read().strip()
+                if lut_data.startswith('[') and lut_data.endswith(']'):
+                    lut_values = ast.literal_eval(lut_data)
+                    if isinstance(lut_values, list) and all(isinstance(color, tuple) and len(color) == 3 for color in lut_values):
+                        lut_name = os.path.splitext(filename)[0]
+                        lut_array = np.array(
+                            lut_values, dtype=np.uint8).reshape((256, 1, 3))
+                        LUTS[lut_name] = lut_array
+                        print(f"Loaded custom LUT: {lut_name}")
+                    else:
+                        print(
+                            f"Invalid format in LUT file: {filename}. Expected a list of 3-tuple colors.")
+                else:
+                    print(
+                        f"Invalid format in LUT file: {filename}. File must contain a list of color tuples.")
+        except (SyntaxError, ValueError) as e:
+            print(f"Error loading LUT file {filename}: {e}")
+        except Exception as e:
+            print(f"Unexpected error loading LUT file {filename}: {e}")
 
 
 def create_custom_lut(color, color_gradient_step):
@@ -75,7 +106,7 @@ def create_custom_lut(color, color_gradient_step):
         gradient_colors = ((0, 128, 0), (139, 69, 19), color_gradient_step)
     else:
         raise ValueError(
-            "Unsupported color for LUT creation. Supported colors are 'red', 'green', and 'blue'.")
+            "Unsupported color for LUT creation. Supported colors are 'red', 'green', 'blue', etc.")
 
     black_to_white_step = 256 - color_gradient_step
     black_to_white = np.linspace(
@@ -86,7 +117,7 @@ def create_custom_lut(color, color_gradient_step):
     # Ensure we have exactly 256 colors by interpolating if necessary
     if len(custom_colors) != 256:
         custom_colors = np.linspace(
-            custom_colors[0], custom_colors[-1], 256, dtype=np.uint8)
+            custom_colors[0], custom_colors[-1], 256, axis=0).astype(np.uint8)
 
     # Create a custom LUT with 256 entries
     custom_lut = custom_colors.reshape((256, 1, 3))
@@ -122,7 +153,10 @@ class VideoKaleidoscope:
         self.attributes = VideoAttributes()
         self.current_frame = None
         self.video_stopped = False
-        self.lut = None
+        self.base_lut = None  # Initialize base LUT
+        self.modified_lut = cv2.applyColorMap(
+            np.arange(256, dtype=np.uint8), cv2.COLORMAP_RAINBOW
+        )  # Default LUT
         self.root = tk.Tk()
         self.root.title("Video Kaleidoscope")
 
@@ -138,10 +172,45 @@ class VideoKaleidoscope:
         # Set up controls in separate windows
         self.create_control_window()
 
+        # Add key bindings for LUT manipulations
+        self.root.bind("i", self.invert_lut)
+        self.root.bind("[", self.shift_lut_left)
+        self.root.bind("]", self.shift_lut_right)
+
         # Start updating video
         self.update_video()
 
         self.root.mainloop()
+
+    def apply_modified_lut(self):
+        """Applies modifications to the base LUT and updates the modified LUT."""
+        if isinstance(self.base_lut, int):
+            # OpenCV colormap LUTs (predefined) are integers
+            self.modified_lut = self.base_lut
+        elif self.base_lut is not None:
+            # Custom LUTs are NumPy arrays
+            self.modified_lut = self.base_lut.copy()
+
+    def invert_lut(self, event=None):
+        """Invert the LUT."""
+        if self.modified_lut is not None:
+            self.modified_lut = np.flip(self.modified_lut, axis=0)
+        else:
+            print("Error: LUT not properly initialized.")
+
+    def shift_lut_left(self, event=None):
+        """Shift LUT values to the left."""
+        if self.modified_lut is not None and self.modified_lut.ndim == 3:
+            self.modified_lut = np.roll(self.modified_lut, -8, axis=0)
+        else:
+            print("Error: LUT not properly initialized.")
+
+    def shift_lut_right(self, event=None):
+        """Shift LUT values to the right."""
+        if self.modified_lut is not None and self.modified_lut.ndim == 3:
+            self.modified_lut = np.roll(self.modified_lut, 8, axis=0)
+        else:
+            print("Error: LUT not properly initialized.")
 
     def create_control_window(self):
         self.control_window = Toplevel(self.root)
@@ -154,16 +223,20 @@ class VideoKaleidoscope:
 
         # Load control icons (25x25 pixels) with error handling
         try:
-            play_icon = ImageTk.PhotoImage(Image.open("icons/play_button.png").resize((25, 25)))
-            pause_icon = ImageTk.PhotoImage(Image.open("icons/pause_button.png").resize((25, 25)))
-            stop_icon = ImageTk.PhotoImage(Image.open("icons/stop_button.png").resize((25, 25)))
+            play_icon = ImageTk.PhotoImage(Image.open(
+                "icons/play_button.png").resize((25, 25)))
+            pause_icon = ImageTk.PhotoImage(Image.open(
+                "icons/pause_button.png").resize((25, 25)))
+            stop_icon = ImageTk.PhotoImage(Image.open(
+                "icons/stop_button.png").resize((25, 25)))
             flip_horizontal_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_horizontal.png").resize((25, 25)))
             flip_vertical_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_vertical.png").resize((25, 25)))
             flip_inverse_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_inverse.png").resize((25, 25)))
-            snapshot_icon = ImageTk.PhotoImage(Image.open("icons/snapshot_button.png").resize((25, 25)))
+            snapshot_icon = ImageTk.PhotoImage(Image.open(
+                "icons/snapshot_button.png").resize((25, 25)))
             mirror_left_icon = ImageTk.PhotoImage(
                 Image.open("icons/mirror_left.png").resize((25, 25)))
             mirror_right_icon = ImageTk.PhotoImage(
@@ -172,8 +245,10 @@ class VideoKaleidoscope:
                 Image.open("icons/mirror_up.png").resize((25, 25)))
             mirror_down_icon = ImageTk.PhotoImage(
                 Image.open("icons/mirror_down.png").resize((25, 25)))
-            exit_icon = ImageTk.PhotoImage(Image.open("icons/exit_button.png").resize((25, 25)))
-            reset_icon = ImageTk.PhotoImage(Image.open("icons/reset_button.png").resize((25, 25)))
+            exit_icon = ImageTk.PhotoImage(Image.open(
+                "icons/exit_button.png").resize((25, 25)))
+            reset_icon = ImageTk.PhotoImage(Image.open(
+                "icons/reset_button.png").resize((25, 25)))
             reverse_playback_icon = ImageTk.PhotoImage(
                 Image.open("icons/reverse_playback.png").resize((25, 25)))
             pan_up_icon = ImageTk.PhotoImage(
@@ -213,15 +288,18 @@ class VideoKaleidoscope:
 
         # Add top row controls
         for idx, (icon, command) in enumerate(top_row_controls):
-            tk.Button(controls_frame, image=icon, command=command).grid(row=0, column=idx, padx=5, pady=5, sticky='ew')
+            tk.Button(controls_frame, image=icon, command=command).grid(
+                row=0, column=idx, padx=5, pady=5, sticky='ew')
 
         # Add second row controls
         for idx, (icon, command) in enumerate(second_row_controls):
-            tk.Button(controls_frame, image=icon, command=command).grid(row=1, column=idx, padx=5, pady=5)
+            tk.Button(controls_frame, image=icon, command=command).grid(
+                row=1, column=idx, padx=5, pady=5)
 
         # Add third row controls for mirror buttons
         for idx, (icon, command) in enumerate(third_row_controls):
-            tk.Button(controls_frame, image=icon, command=command).grid(row=2, column=idx, padx=5, pady=5)
+            tk.Button(controls_frame, image=icon, command=command).grid(
+                row=2, column=idx, padx=5, pady=5)
 
         # Sliders section
         sliders_frame = LabelFrame(self.control_window, text="Adjustments")
@@ -230,7 +308,8 @@ class VideoKaleidoscope:
         # Slider for rotation angle
         self.rotation_slider = tk.Scale(sliders_frame, from_=0, to=359.5, orient=tk.VERTICAL,
                                         resolution=0.5, label="Rot", command=lambda x: self.set_rotation_angle(float(x)), )
-        self.rotation_slider.grid(row=0, column=0, sticky="nswe", padx=10, pady=5)
+        self.rotation_slider.grid(
+            row=0, column=0, sticky="nswe", padx=10, pady=5)
 
         self.zoom_slider = tk.Scale(sliders_frame, from_=1, to=50, orient=tk.VERTICAL,
                                     label="Zoom", command=lambda x: self.set_zoom_factor(float(x) / 10), )
@@ -238,11 +317,13 @@ class VideoKaleidoscope:
 
         self.playback_speed_slider = tk.Scale(sliders_frame, from_=4.0, to=-4.0, orient=tk.VERTICAL,
                                               label="Speed", command=lambda x: self.set_playback_speed(float(x)))
-        self.playback_speed_slider.grid(row=0, column=2, sticky="nswe", padx=10, pady=5)
+        self.playback_speed_slider.grid(
+            row=0, column=2, sticky="nswe", padx=10, pady=5)
 
         self.brightness_slider = tk.Scale(sliders_frame, from_=4, to=-4, orient=tk.VERTICAL,
                                           label="Bright", command=lambda x: self.set_brightness(int(x)))
-        self.brightness_slider.grid(row=0, column=3, sticky="nswe", padx=10, pady=5)
+        self.brightness_slider.grid(
+            row=0, column=3, sticky="nswe", padx=10, pady=5)
 
         # Kaleidoscope and LUT section
         kaleidoscope_frame = LabelFrame(self.control_window, text="Effects")
@@ -256,7 +337,8 @@ class VideoKaleidoscope:
         self.lut_var = StringVar(self.control_window)
         self.lut_var.set("None")  # Default value
         luts = ["None"] + sorted(list(LUTS.keys()))
-        self.lut_menu = OptionMenu(kaleidoscope_frame, self.lut_var, *luts, command=self.set_lut)
+        self.lut_menu = OptionMenu(
+            kaleidoscope_frame, self.lut_var, *luts, command=self.set_lut)
         self.lut_menu.pack(fill=tk.X, pady=5)
 
         # Pan controls section
@@ -264,15 +346,22 @@ class VideoKaleidoscope:
         pan_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
         # Pan controls arranged in a plus shape
-        tk.Button(pan_frame, image=pan_up_icon, command=lambda: self.pan_video(0, -10)).grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_left_icon, command=lambda: self.pan_video(-10, 0)).grid(row=1, column=0, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_center_icon, command=self.center_pan).grid(row=1, column=1, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_right_icon, command=lambda: self.pan_video(10, 0)).grid(row=1, column=2, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_down_icon, command=lambda: self.pan_video(0, 10)).grid(row=2, column=1, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_up_icon, command=lambda: self.pan_video(
+            0, -10)).grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_left_icon, command=lambda: self.pan_video(-10, 0)
+                  ).grid(row=1, column=0, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_center_icon, command=self.center_pan).grid(
+            row=1, column=1, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_right_icon, command=lambda: self.pan_video(
+            10, 0)).grid(row=1, column=2, padx=5, pady=5)
+        tk.Button(pan_frame, image=pan_down_icon, command=lambda: self.pan_video(
+            0, 10)).grid(row=2, column=1, padx=5, pady=5)
 
         # Keep references to the images to prevent garbage collection
-        self.icons = [icon for icon, _ in top_row_controls + second_row_controls + third_row_controls]
-        self.icons += [pan_up_icon, pan_down_icon, pan_left_icon, pan_right_icon, pan_center_icon]
+        self.icons = [icon for icon, _ in top_row_controls +
+                      second_row_controls + third_row_controls]
+        self.icons += [pan_up_icon, pan_down_icon,
+                       pan_left_icon, pan_right_icon, pan_center_icon]
 
     def set_video_position(self, position):
         if self.cap.isOpened():
@@ -342,7 +431,7 @@ class VideoKaleidoscope:
         self.attributes.flip_vertical = not self.attributes.flip_vertical
         if self.attributes.paused:
             self.apply_effects()
-    
+
     def toggle_flip_inverse(self):
         # Flip horizontally
         self.toggle_flip_horizontal()
@@ -394,22 +483,27 @@ class VideoKaleidoscope:
 
     def set_lut(self, lut_name):
         if lut_name == "None":
-            self.lut = None
+            self.base_lut = None
+            self.modified_lut = None
         else:
             lut_function = LUTS.get(lut_name)
             if lut_function is None:
                 print(f"Error: LUT '{lut_name}' not found.")
                 return
-            self.lut = lut_function() if callable(lut_function) else lut_function
+            self.base_lut = lut_function() if callable(lut_function) else lut_function
+            self.apply_modified_lut()
         if self.attributes.paused:
             self.apply_effects()
 
     def apply_lut(self, frame):
-        if self.lut is not None:
-            if isinstance(self.lut, np.ndarray):
-                frame = cv2.LUT(frame, self.lut)
+        if self.modified_lut is not None:
+            if isinstance(self.modified_lut, np.ndarray):
+                if self.modified_lut.shape == (256, 1, 3):
+                    frame = cv2.LUT(frame, self.modified_lut)
+                else:
+                    print("Error: LUT must have shape (256, 1, 3).")
             else:
-                frame = cv2.applyColorMap(frame, self.lut)
+                frame = cv2.applyColorMap(frame, self.modified_lut)
         return frame
 
     def snapshot(self):
@@ -418,12 +512,14 @@ class VideoKaleidoscope:
             height, width = frame.shape[:2]
 
             # Apply zoom and pan
-            center_x, center_y = width // 2 + self.attributes.pan_x, height // 2 + self.attributes.pan_y
+            center_x, center_y = width // 2 + \
+                self.attributes.pan_x, height // 2 + self.attributes.pan_y
             new_width, new_height = int(
                 width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
             x1, y1 = max(0, center_x - new_width // 2), max(0,
                                                             center_y - new_height // 2)
-            x2, y2 = min(width, center_x + new_width // 2), min(height, center_y + new_height // 2)
+            x2, y2 = min(width, center_x + new_width //
+                         2), min(height, center_y + new_height // 2)
             frame = frame[y1:y2, x1:x2]
             frame = cv2.resize(frame, (width, height))
 
@@ -495,7 +591,8 @@ class VideoKaleidoscope:
             # Save the processed frame as an image file
             timestamp = datetime.now().strftime('%Y%m%d%M%S')
             filename = f'snapshot-{timestamp}.png'
-            threading.Thread(target=cv2.imwrite, args=(filename, frame)).start()
+            threading.Thread(target=cv2.imwrite,
+                             args=(filename, frame)).start()
             print(f'Snapshot saving in progress as {filename}')
 
     def frame_forward(self):
@@ -536,17 +633,23 @@ class VideoKaleidoscope:
                 display_width, display_height = width, height
 
             # Apply zoom and pan
-            center_x, center_y = width // 2 + self.attributes.pan_x, height // 2 + self.attributes.pan_y
-            new_width, new_height = int(width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
-            x1, y1 = max(0, center_x - new_width // 2), max(0, center_y - new_height // 2)
-            x2, y2 = min(width, center_x + new_width // 2), min(height, center_y + new_height // 2)
+            center_x, center_y = width // 2 + \
+                self.attributes.pan_x, height // 2 + self.attributes.pan_y
+            new_width, new_height = int(
+                width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
+            x1, y1 = max(0, center_x - new_width // 2), max(0,
+                                                            center_y - new_height // 2)
+            x2, y2 = min(width, center_x + new_width //
+                         2), min(height, center_y + new_height // 2)
             frame = frame[y1:y2, x1:x2]
             frame = cv2.resize(frame, (display_width, display_height))
 
             # Apply rotation
             if self.attributes.rotation_angle != 0:
-                matrix = cv2.getRotationMatrix2D((display_width // 2, display_height // 2), self.attributes.rotation_angle, 1)
-                frame = cv2.warpAffine(frame, matrix, (display_width, display_height), borderMode=cv2.BORDER_REFLECT)
+                matrix = cv2.getRotationMatrix2D(
+                    (display_width // 2, display_height // 2), self.attributes.rotation_angle, 1)
+                frame = cv2.warpAffine(
+                    frame, matrix, (display_width, display_height), borderMode=cv2.BORDER_REFLECT)
 
             # Apply flip
             if self.attributes.flip_horizontal:
@@ -555,7 +658,8 @@ class VideoKaleidoscope:
                 frame = cv2.flip(frame, 0)
 
             # Apply brightness adjustment
-            frame = cv2.convertScaleAbs(frame, alpha=1, beta=self.attributes.brightness * 25)
+            frame = cv2.convertScaleAbs(
+                frame, alpha=1, beta=self.attributes.brightness * 25)
 
             # Apply mirror effects for the left side
             if self.attributes.mirror_left_level == 1:
@@ -566,7 +670,8 @@ class VideoKaleidoscope:
                 left = frame[:, :third_width]
                 right = frame[:, 2 * third_width:]
                 min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width + min_width] = cv2.flip(left[:, :min_width], 1)
+                frame[:, third_width:third_width +
+                      min_width] = cv2.flip(left[:, :min_width], 1)
                 frame[:, :min_width] = cv2.flip(right[:, :min_width], 1)
             elif self.attributes.mirror_left_level == 3:
                 quarter_width = frame.shape[1] // 4
@@ -584,8 +689,10 @@ class VideoKaleidoscope:
                 left = frame[:, :third_width]
                 right = frame[:, 2 * third_width:]
                 min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width + min_width] = cv2.flip(right[:, :min_width], 1)
-                frame[:, 2 * third_width:2 * third_width + min_width] = cv2.flip(left[:, :min_width], 1)
+                frame[:, third_width:third_width +
+                      min_width] = cv2.flip(right[:, :min_width], 1)
+                frame[:, 2 * third_width:2 * third_width +
+                      min_width] = cv2.flip(left[:, :min_width], 1)
             elif self.attributes.mirror_right_level == 3:
                 quarter_width = frame.shape[1] // 4
                 for i in range(4):
@@ -699,7 +806,8 @@ if __name__ == "__main__":
         print("  Rotation Slider: Slider to adjust the rotation angle")
         print("  Zoom Slider: Slider to adjust the zoom level")
         print("  Brightness Slider: Slider to adjust the brightness level")
-        print("  Kaleidoscope Segments: Slider to adjust the number of kaleidoscope segments")
+        print(
+            "  Kaleidoscope Segments: Slider to adjust the number of kaleidoscope segments")
         sys.exit(1)
     else:
         video_path = sys.argv[1]
