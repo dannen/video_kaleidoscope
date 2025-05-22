@@ -233,8 +233,12 @@ class VideoKaleidoscope:
                 Image.open("icons/flip_horizontal.png").resize((25, 25)))
             flip_vertical_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_vertical.png").resize((25, 25)))
-            flip_inverse_icon = ImageTk.PhotoImage(
-                Image.open("icons/flip_inverse.png").resize((25, 25)))
+            try:
+                flip_inverse_icon = ImageTk.PhotoImage(
+                    Image.open("icons/flip_inverse.png").resize((25, 25)))
+            except FileNotFoundError:
+                print("Error: icons/flip_inverse.png not found. This button will not be available.")
+                flip_inverse_icon = None
             snapshot_icon = ImageTk.PhotoImage(Image.open(
                 "icons/snapshot_button.png").resize((25, 25)))
             mirror_left_icon = ImageTk.PhotoImage(
@@ -275,10 +279,12 @@ class VideoKaleidoscope:
         second_row_controls = [
             (flip_horizontal_icon, self.toggle_flip_horizontal),
             (flip_vertical_icon, self.toggle_flip_vertical),
-            (flip_inverse_icon, self.toggle_flip_inverse),
+            # (flip_inverse_icon, self.toggle_flip_inverse), # This line will be conditional
             (snapshot_icon, self.snapshot),
             (reset_icon, self.reset)
         ]
+        if flip_inverse_icon:
+            second_row_controls.insert(2, (flip_inverse_icon, self.toggle_flip_inverse))
         third_row_controls = [
             (mirror_up_icon, self.toggle_mirror_up),
             (mirror_down_icon, self.toggle_mirror_down),
@@ -730,6 +736,8 @@ class VideoKaleidoscope:
             self.update_seek_slider()
 
     def kaleidoscope_effect(self, frame):
+        if self.attributes.kaleidoscope_segments == 0:
+            return frame
         height, width = frame.shape[:2]
         center_x, center_y = width // 2, height // 2
         mask = np.zeros_like(frame)
@@ -768,7 +776,12 @@ class VideoKaleidoscope:
         self.set_lut("None")
         # Reset all sliders to their default values
         for slider in [self.zoom_slider, self.playback_speed_slider, self.brightness_slider, self.kaleidoscope_slider, self.rotation_slider]:
-            slider.set(0 if slider.cget("label") != "Zoom" else 1)
+            if slider == self.playback_speed_slider:
+                slider.set(1.0)
+            elif slider == self.zoom_slider:
+                slider.set(1)
+            else:
+                slider.set(0)
         if self.attributes.paused:
             self.apply_effects()
 
