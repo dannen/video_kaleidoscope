@@ -94,6 +94,9 @@ if os.path.isdir(palette_directory):
             except Exception as e:
                 print(f"Error loading palette {filename}: {e}")
 
+# Full cycle list: all LUTs in sorted order (built-ins + .lut files + palettes)
+ALL_LUT_NAMES = sorted(LUTS.keys())
+
 
 def create_custom_lut(color, color_gradient_step):
     """Creates a custom LUT using predefined color data."""
@@ -325,18 +328,14 @@ class VideoKaleidoscope:
         return cv2.addWeighted(frame, 1.0, glow, intensity / 100.0, 0)
 
     def cycle_palette_forward(self, event=None):
-        if not PALETTE_LUT_NAMES:
-            return
-        self.palette_index = (self.palette_index + 1) % len(PALETTE_LUT_NAMES)
-        name = PALETTE_LUT_NAMES[self.palette_index]
+        self.palette_index = (self.palette_index + 1) % len(ALL_LUT_NAMES)
+        name = ALL_LUT_NAMES[self.palette_index]
         self.lut_var.set(name)
         self.set_lut(name)
 
     def cycle_palette_backward(self, event=None):
-        if not PALETTE_LUT_NAMES:
-            return
-        self.palette_index = (self.palette_index - 1) % len(PALETTE_LUT_NAMES)
-        name = PALETTE_LUT_NAMES[self.palette_index]
+        self.palette_index = (self.palette_index - 1) % len(ALL_LUT_NAMES)
+        name = ALL_LUT_NAMES[self.palette_index]
         self.lut_var.set(name)
         self.set_lut(name)
 

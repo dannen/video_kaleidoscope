@@ -130,8 +130,8 @@ Snapshots and recordings are saved to the working directory and are excluded fro
 | `i` | Invert the current LUT (flip the color map) |
 | `[` | Shift LUT colors left by 8 steps (cycles the gradient) |
 | `]` | Shift LUT colors right by 8 steps |
-| `p` | Next color palette (cycles through palettes loaded from `color_palletes/`) |
-| `P` | Previous color palette |
+| `p` | Next LUT (cycles through all LUTs: built-ins, `.lut` files, and `color_palletes/` images) |
+| `P` | Previous LUT |
 
 ---
 
