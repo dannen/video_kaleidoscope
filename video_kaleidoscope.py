@@ -605,8 +605,9 @@ class VideoKaleidoscope:
         kaleidoscope_frame = LabelFrame(scroll_frame, text="Effects")
         kaleidoscope_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
-        self.kaleidoscope_slider = tk.Scale(kaleidoscope_frame, from_=0, to=12, orient=tk.HORIZONTAL,
+        self.kaleidoscope_slider = tk.Scale(kaleidoscope_frame, from_=1, to=12, orient=tk.HORIZONTAL,
                                             label="Kaleidoscope", command=lambda x: self.set_kaleidoscope_segments(int(x)))
+        self.kaleidoscope_slider.set(1)
         self.kaleidoscope_slider.pack(fill=tk.X, padx=5, pady=5)
 
         self.echo_slider = tk.Scale(kaleidoscope_frame, from_=0, to=95, orient=tk.HORIZONTAL,
@@ -910,7 +911,7 @@ class VideoKaleidoscope:
             (self.brightness_slider, 0),
             (self.hue_slider, 0),
             (self.spin_slider, 0),
-            (self.kaleidoscope_slider, 0),
+            (self.kaleidoscope_slider, 1),
             (self.echo_slider, 0),
             (self.pixel_sort_slider, 0),
             (self.edge_glow_slider, 0),
