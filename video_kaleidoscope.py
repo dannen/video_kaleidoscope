@@ -825,6 +825,9 @@ class VideoKaleidoscope:
                                 self.attributes.reverse_playback_speed)
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_frame)
             ret, frame = self.cap.read()
+            if not ret:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
             if ret:
                 self.current_frame = frame
                 self.apply_effects()
