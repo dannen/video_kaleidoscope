@@ -123,7 +123,8 @@ Snapshots and recordings are saved to the working directory and are excluded fro
 
 | Key | Action |
 |-----|--------|
-| `i` | Invert the current LUT (flip the color map) |
+| `i` | Toggle color inversion — photo-negative effect on the final frame |
+| `I` | Invert the current LUT (flip the color map) |
 | `[` | Shift LUT colors left by 8 steps (cycles the gradient) |
 | `]` | Shift LUT colors right by 8 steps |
 | `p` | Next LUT (cycles through all LUTs: built-ins, `.lut` files, and `color_palletes/` images) |

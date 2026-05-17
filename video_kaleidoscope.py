@@ -169,6 +169,7 @@ class VideoAttributes:
         self.echo_strength = 0
         self.pixel_sort_threshold = 0
         self.edge_glow_intensity = 0
+        self.color_invert = False
 
 
 class VideoKaleidoscope:
@@ -204,7 +205,8 @@ class VideoKaleidoscope:
         self.create_control_window()
 
         # Add key bindings for LUT manipulations
-        self.root.bind("i", self.invert_lut)
+        self.root.bind("i", self.toggle_color_invert)
+        self.root.bind("I", self.invert_lut)
         self.root.bind("[", self.shift_lut_left)
         self.root.bind("]", self.shift_lut_right)
 
@@ -226,6 +228,11 @@ class VideoKaleidoscope:
         elif self.base_lut is not None:
             # Custom LUTs are NumPy arrays
             self.modified_lut = self.base_lut.copy()
+
+    def toggle_color_invert(self, event=None):
+        self.attributes.color_invert = not self.attributes.color_invert
+        if self.attributes.paused:
+            self.apply_effects()
 
     def invert_lut(self, event=None):
         """Invert the LUT."""
@@ -806,6 +813,9 @@ class VideoKaleidoscope:
         frame = self.apply_lut(frame)
         frame = self.apply_echo(frame)
         frame = self.apply_edge_glow(frame)
+
+        if self.attributes.color_invert:
+            frame = cv2.bitwise_not(frame)
 
         if self.recording:
             if self.video_writer is None:
