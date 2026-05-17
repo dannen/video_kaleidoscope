@@ -583,6 +583,7 @@ class VideoKaleidoscope:
         self.playback_speed_slider = tk.Scale(sliders_frame, from_=-4.0, to=4.0, orient=tk.HORIZONTAL,
                                               resolution=0.1, label="Speed  (negative = reverse)",
                                               command=lambda x: self.set_playback_speed(float(x)))
+        self.playback_speed_slider.set(1.0)
         self.playback_speed_slider.pack(fill=tk.X, padx=5, pady=2)
 
         self.brightness_slider = tk.Scale(sliders_frame, from_=-4, to=4, orient=tk.HORIZONTAL,
