@@ -407,8 +407,37 @@ class VideoKaleidoscope:
         self.control_window.title("Video Controls")
         self.control_window.geometry("520x700+200+200")
 
+        # Scrollable canvas so all controls are reachable on any screen size
+        _canvas = tk.Canvas(self.control_window, borderwidth=0, highlightthickness=0)
+        _scrollbar = tk.Scrollbar(self.control_window, orient="vertical", command=_canvas.yview)
+        _canvas.configure(yscrollcommand=_scrollbar.set)
+        _scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        _canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scroll_frame = tk.Frame(_canvas)
+        _canvas_win = _canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+
+        def _on_frame_configure(e):
+            _canvas.configure(scrollregion=_canvas.bbox("all"))
+        scroll_frame.bind("<Configure>", _on_frame_configure)
+
+        def _on_canvas_configure(e):
+            _canvas.itemconfig(_canvas_win, width=e.width)
+        _canvas.bind("<Configure>", _on_canvas_configure)
+
+        # Mouse-wheel scrolling (Linux Button-4/5, Windows/Mac MouseWheel)
+        def _on_mousewheel(e):
+            _canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        def _on_scroll_up(e):
+            _canvas.yview_scroll(-1, "units")
+        def _on_scroll_down(e):
+            _canvas.yview_scroll(1, "units")
+        self.control_window.bind_all("<MouseWheel>", _on_mousewheel)
+        self.control_window.bind_all("<Button-4>", _on_scroll_up)
+        self.control_window.bind_all("<Button-5>", _on_scroll_down)
+
         # Control section for play, pause, etc.
-        controls_frame = LabelFrame(self.control_window, text="Controls")
+        controls_frame = LabelFrame(scroll_frame, text="Controls")
         controls_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
         # Load control icons (25x25 pixels) with error handling
@@ -509,7 +538,7 @@ class VideoKaleidoscope:
                   command=lambda: self.pan_video(0, 10)).grid(row=2, column=6, padx=2, pady=2)
 
         # Sliders section
-        sliders_frame = LabelFrame(self.control_window, text="Adjustments")
+        sliders_frame = LabelFrame(scroll_frame, text="Adjustments")
         sliders_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
         self.rotation_slider = tk.Scale(sliders_frame, from_=0, to=359.5, orient=tk.HORIZONTAL,
@@ -544,7 +573,7 @@ class VideoKaleidoscope:
         self.spin_slider.pack(fill=tk.X, padx=5, pady=2)
 
         # Kaleidoscope and LUT section
-        kaleidoscope_frame = LabelFrame(self.control_window, text="Effects")
+        kaleidoscope_frame = LabelFrame(scroll_frame, text="Effects")
         kaleidoscope_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
         self.kaleidoscope_slider = tk.Scale(kaleidoscope_frame, from_=0, to=12, orient=tk.HORIZONTAL,
