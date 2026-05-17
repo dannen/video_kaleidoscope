@@ -350,11 +350,9 @@ class VideoKaleidoscope:
         """Apply zoom/pan, rotation, flip, and all mirror effects to frame, preserving its dimensions."""
         h, w = frame.shape[:2]
 
-        # Zoom and pan:
-        #   zoom_factor > 0: crop center and resize up (zoom in)
-        #   zoom_factor < 0: mirror-tile outward and resize down (zoom out, abcdeedcba)
-        zoom = abs(self.attributes.zoom_factor)
-        if self.attributes.zoom_factor >= 0:
+        # Zoom in only (positive zoom_factor); zoom out is applied after all effects
+        if self.attributes.zoom_factor > 1.0:
+            zoom = self.attributes.zoom_factor
             cx = w // 2 + self.attributes.pan_x
             cy = h // 2 + self.attributes.pan_y
             nw = max(1, int(w / zoom))
@@ -364,20 +362,6 @@ class VideoKaleidoscope:
             x2 = min(w, x1 + nw)
             y2 = min(h, y1 + nh)
             frame = cv2.resize(frame[y1:y2, x1:x2], (w, h))
-        else:
-            target_w = int(w * zoom)
-            target_h = int(h * zoom)
-            pad_x = (target_w - w) // 2 + abs(self.attributes.pan_x) + 1
-            pad_y = (target_h - h) // 2 + abs(self.attributes.pan_y) + 1
-            padded = np.pad(frame, ((pad_y, pad_y), (pad_x, pad_x), (0, 0)), mode='reflect')
-            ph, pw = padded.shape[:2]
-            cx = pw // 2 + self.attributes.pan_x
-            cy = ph // 2 + self.attributes.pan_y
-            x1 = max(0, cx - target_w // 2)
-            y1 = max(0, cy - target_h // 2)
-            x2 = min(pw, x1 + target_w)
-            y2 = min(ph, y1 + target_h)
-            frame = cv2.resize(padded[y1:y2, x1:x2], (w, h))
 
         # Rotation
         if self.attributes.rotation_angle != 0:
@@ -425,6 +409,26 @@ class VideoKaleidoscope:
             frame[:h // 2, :] = cv2.flip(frame[h // 2:, :], 0)
 
         return frame
+
+    def _apply_zoom_out(self, frame):
+        """Mirror-tile zoom out (negative zoom_factor): tiles the processed frame outward."""
+        if self.attributes.zoom_factor >= 0:
+            return frame
+        h, w = frame.shape[:2]
+        zoom = abs(self.attributes.zoom_factor)
+        target_w = int(w * zoom)
+        target_h = int(h * zoom)
+        pad_x = (target_w - w) // 2 + abs(self.attributes.pan_x) + 1
+        pad_y = (target_h - h) // 2 + abs(self.attributes.pan_y) + 1
+        padded = np.pad(frame, ((pad_y, pad_y), (pad_x, pad_x), (0, 0)), mode='reflect')
+        ph, pw = padded.shape[:2]
+        cx = pw // 2 + self.attributes.pan_x
+        cy = ph // 2 + self.attributes.pan_y
+        x1 = max(0, cx - target_w // 2)
+        y1 = max(0, cy - target_h // 2)
+        x2 = min(pw, x1 + target_w)
+        y2 = min(ph, y1 + target_h)
+        return cv2.resize(padded[y1:y2, x1:x2], (w, h))
 
     def create_control_window(self):
         self.control_window = Toplevel(self.root)
@@ -833,6 +837,8 @@ class VideoKaleidoscope:
 
         if self.attributes.color_invert:
             frame = cv2.bitwise_not(frame)
+
+        frame = self._apply_zoom_out(frame)
 
         if self.recording:
             if self.video_writer is None:
