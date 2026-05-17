@@ -212,6 +212,66 @@ class VideoKaleidoscope:
         else:
             print("Error: LUT not properly initialized.")
 
+    def _apply_transforms(self, frame):
+        """Apply zoom/pan, rotation, flip, and all mirror effects to frame, preserving its dimensions."""
+        h, w = frame.shape[:2]
+
+        # Zoom and pan
+        cx = w // 2 + self.attributes.pan_x
+        cy = h // 2 + self.attributes.pan_y
+        nw = int(w / self.attributes.zoom_factor)
+        nh = int(h / self.attributes.zoom_factor)
+        x1, y1 = max(0, cx - nw // 2), max(0, cy - nh // 2)
+        x2, y2 = min(w, cx + nw // 2), min(h, cy + nh // 2)
+        frame = cv2.resize(frame[y1:y2, x1:x2], (w, h))
+
+        # Rotation
+        if self.attributes.rotation_angle != 0:
+            matrix = cv2.getRotationMatrix2D((w // 2, h // 2), self.attributes.rotation_angle, 1)
+            frame = cv2.warpAffine(frame, matrix, (w, h), borderMode=cv2.BORDER_REFLECT)
+
+        # Flip
+        if self.attributes.flip_horizontal:
+            frame = cv2.flip(frame, 1)
+        if self.attributes.flip_vertical:
+            frame = cv2.flip(frame, 0)
+
+        # Mirror left
+        if self.attributes.mirror_left_level == 1:
+            frame[:, w // 2:] = cv2.flip(frame[:, :w // 2], 1)
+        elif self.attributes.mirror_left_level == 2:
+            tw = w // 3
+            left, right = frame[:, :tw].copy(), frame[:, 2 * tw:].copy()
+            min_w = min(tw, right.shape[1])
+            frame[:, tw:tw + min_w] = cv2.flip(left[:, :min_w], 1)
+            frame[:, :min_w] = cv2.flip(right[:, :min_w], 1)
+        elif self.attributes.mirror_left_level == 3:
+            qw = w // 4
+            for i in range(0, 4, 2):
+                frame[:, i * qw:(i + 1) * qw] = cv2.flip(frame[:, i * qw:(i + 1) * qw].copy(), 1)
+
+        # Mirror right
+        if self.attributes.mirror_right_level == 1:
+            frame[:, :w // 2] = cv2.flip(frame[:, w // 2:], 1)
+        elif self.attributes.mirror_right_level == 2:
+            tw = w // 3
+            left, right = frame[:, :tw].copy(), frame[:, 2 * tw:].copy()
+            min_w = min(tw, right.shape[1])
+            frame[:, tw:tw + min_w] = cv2.flip(right[:, :min_w], 1)
+            frame[:, 2 * tw:2 * tw + min_w] = cv2.flip(left[:, :min_w], 1)
+        elif self.attributes.mirror_right_level == 3:
+            qw = w // 4
+            for i in range(1, 4, 2):
+                frame[:, i * qw:(i + 1) * qw] = cv2.flip(frame[:, i * qw:(i + 1) * qw].copy(), 1)
+
+        # Mirror up/down
+        if self.attributes.mirror_up:
+            frame[h // 2:, :] = cv2.flip(frame[:h // 2, :], 0)
+        if self.attributes.mirror_down:
+            frame[:h // 2, :] = cv2.flip(frame[h // 2:, :], 0)
+
+        return frame
+
     def create_control_window(self):
         self.control_window = Toplevel(self.root)
         self.control_window.title("Video Controls")
@@ -234,7 +294,7 @@ class VideoKaleidoscope:
             flip_vertical_icon = ImageTk.PhotoImage(
                 Image.open("icons/flip_vertical.png").resize((25, 25)))
             flip_inverse_icon = ImageTk.PhotoImage(
-                Image.open("icons/flip_inverse.png").resize((25, 25)))
+                Image.open("icons/flip_up_down.png").resize((25, 25)))
             snapshot_icon = ImageTk.PhotoImage(Image.open(
                 "icons/snapshot_button.png").resize((25, 25)))
             mirror_left_icon = ImageTk.PhotoImage(
@@ -507,93 +567,13 @@ class VideoKaleidoscope:
         return frame
 
     def snapshot(self):
-        if self.current_frame is not None:
-            frame = self.current_frame.copy()
-            height, width = frame.shape[:2]
-
-            # Apply zoom and pan
-            center_x, center_y = width // 2 + \
-                self.attributes.pan_x, height // 2 + self.attributes.pan_y
-            new_width, new_height = int(
-                width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
-            x1, y1 = max(0, center_x - new_width // 2), max(0,
-                                                            center_y - new_height // 2)
-            x2, y2 = min(width, center_x + new_width //
-                         2), min(height, center_y + new_height // 2)
-            frame = frame[y1:y2, x1:x2]
-            frame = cv2.resize(frame, (width, height))
-
-            # Apply rotation
-            if self.attributes.rotation_angle != 0:
-                matrix = cv2.getRotationMatrix2D(
-                    (width // 2, height // 2), self.attributes.rotation_angle, 1)
-                frame = cv2.warpAffine(
-                    frame, matrix, (width, height), borderMode=cv2.BORDER_REFLECT)
-
-            # Apply flip
-            if self.attributes.flip_horizontal:
-                frame = cv2.flip(frame, 1)
-            if self.attributes.flip_vertical:
-                frame = cv2.flip(frame, 0)
-
-            # Apply mirror effects for the left side
-            if self.attributes.mirror_left_level == 1:
-                left_half = frame[:, :width // 2]
-                frame[:, width // 2:] = cv2.flip(left_half, 1)
-            elif self.attributes.mirror_left_level == 2:
-                third_width = width // 3
-                left = frame[:, :third_width]
-                right = frame[:, 2 * third_width:]
-                min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width +
-                      min_width] = cv2.flip(left[:, :min_width], 1)
-                frame[:, :min_width] = cv2.flip(right[:, :min_width], 1)
-            elif self.attributes.mirror_left_level == 3:
-                quarter_width = width // 4
-                for i in range(4):
-                    if i % 2 == 0:
-                        frame[:, i * quarter_width:(i + 1) * quarter_width] = cv2.flip(
-                            frame[:, i * quarter_width:(i + 1) * quarter_width], 1)
-
-            # Apply mirror effects for the right side
-            if self.attributes.mirror_right_level == 1:
-                right_half = frame[:, width // 2:]
-                frame[:, :width // 2] = cv2.flip(right_half, 1)
-            elif self.attributes.mirror_right_level == 2:
-                third_width = width // 3
-                left = frame[:, :third_width]
-                right = frame[:, 2 * third_width:]
-                min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width +
-                      min_width] = cv2.flip(right[:, :min_width], 1)
-                frame[:, 2 * third_width:2 * third_width +
-                      min_width] = cv2.flip(left[:, :min_width], 1)
-            elif self.attributes.mirror_right_level == 3:
-                quarter_width = width // 4
-                for i in range(4):
-                    if i % 2 == 1:
-                        frame[:, i * quarter_width:(i + 1) * quarter_width] = cv2.flip(
-                            frame[:, i * quarter_width:(i + 1) * quarter_width], 1)
-
-            # Apply mirror up effect
-            if self.attributes.mirror_up:
-                top_half = frame[:height // 2, :]
-                frame[height // 2:, :] = cv2.flip(top_half, 0)
-
-            # Apply mirror down effect
-            if self.attributes.mirror_down:
-                bottom_half = frame[height // 2:, :]
-                frame[:height // 2, :] = cv2.flip(bottom_half, 0)
-
-            # Apply LUT
-            frame = self.apply_lut(frame)
-
-            # Save the processed frame as an image file
-            timestamp = datetime.now().strftime('%Y%m%d%M%S')
-            filename = f'snapshot-{timestamp}.png'
-            threading.Thread(target=cv2.imwrite,
-                             args=(filename, frame)).start()
-            print(f'Snapshot saving in progress as {filename}')
+        if self.current_frame is None:
+            return
+        frame = self.apply_lut(self._apply_transforms(self.current_frame.copy()))
+        timestamp = datetime.now().strftime('%Y%m%d%M%S')
+        filename = f'snapshot-{timestamp}.png'
+        threading.Thread(target=cv2.imwrite, args=(filename, frame)).start()
+        print(f'Snapshot saving in progress as {filename}')
 
     def frame_forward(self):
         if self.cap.isOpened():
@@ -621,113 +601,27 @@ class VideoKaleidoscope:
             self.attributes.reverse_playback_speed = 1.0
 
     def apply_effects(self):
-        if self.current_frame is not None:
-            frame = self.current_frame.copy()
-            height, width = frame.shape[:2]
+        if self.current_frame is None:
+            return
+        frame = self.current_frame.copy()
+        h, w = frame.shape[:2]
 
-            # Resize frame for display if larger than 800x600
-            if width > 800 or height > 600:
-                display_width, display_height = 800, 600
-                frame = cv2.resize(frame, (display_width, display_height))
-            else:
-                display_width, display_height = width, height
+        if w > 800 or h > 600:
+            frame = cv2.resize(frame, (800, 600))
 
-            # Apply zoom and pan
-            center_x, center_y = width // 2 + \
-                self.attributes.pan_x, height // 2 + self.attributes.pan_y
-            new_width, new_height = int(
-                width / self.attributes.zoom_factor), int(height / self.attributes.zoom_factor)
-            x1, y1 = max(0, center_x - new_width // 2), max(0,
-                                                            center_y - new_height // 2)
-            x2, y2 = min(width, center_x + new_width //
-                         2), min(height, center_y + new_height // 2)
-            frame = frame[y1:y2, x1:x2]
-            frame = cv2.resize(frame, (display_width, display_height))
+        frame = self._apply_transforms(frame)
+        frame = cv2.convertScaleAbs(frame, alpha=1, beta=self.attributes.brightness * 25)
 
-            # Apply rotation
-            if self.attributes.rotation_angle != 0:
-                matrix = cv2.getRotationMatrix2D(
-                    (display_width // 2, display_height // 2), self.attributes.rotation_angle, 1)
-                frame = cv2.warpAffine(
-                    frame, matrix, (display_width, display_height), borderMode=cv2.BORDER_REFLECT)
+        if self.attributes.kaleidoscope_segments > 0:
+            frame = self.kaleidoscope_effect(frame)
 
-            # Apply flip
-            if self.attributes.flip_horizontal:
-                frame = cv2.flip(frame, 1)
-            if self.attributes.flip_vertical:
-                frame = cv2.flip(frame, 0)
+        frame = self.apply_lut(frame)
 
-            # Apply brightness adjustment
-            frame = cv2.convertScaleAbs(
-                frame, alpha=1, beta=self.attributes.brightness * 25)
-
-            # Apply mirror effects for the left side
-            if self.attributes.mirror_left_level == 1:
-                left_half = frame[:, :frame.shape[1] // 2]
-                frame[:, frame.shape[1] // 2:] = cv2.flip(left_half, 1)
-            elif self.attributes.mirror_left_level == 2:
-                third_width = frame.shape[1] // 3
-                left = frame[:, :third_width]
-                right = frame[:, 2 * third_width:]
-                min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width +
-                      min_width] = cv2.flip(left[:, :min_width], 1)
-                frame[:, :min_width] = cv2.flip(right[:, :min_width], 1)
-            elif self.attributes.mirror_left_level == 3:
-                quarter_width = frame.shape[1] // 4
-                for i in range(4):
-                    if i % 2 == 0:
-                        frame[:, i * quarter_width:(i + 1) * quarter_width] = cv2.flip(
-                            frame[:, i * quarter_width:(i + 1) * quarter_width], 1)
-
-            # Apply mirror effects for the right side
-            if self.attributes.mirror_right_level == 1:
-                right_half = frame[:, frame.shape[1] // 2:]
-                frame[:, :frame.shape[1] // 2] = cv2.flip(right_half, 1)
-            elif self.attributes.mirror_right_level == 2:
-                third_width = frame.shape[1] // 3
-                left = frame[:, :third_width]
-                right = frame[:, 2 * third_width:]
-                min_width = min(left.shape[1], right.shape[1])
-                frame[:, third_width:third_width +
-                      min_width] = cv2.flip(right[:, :min_width], 1)
-                frame[:, 2 * third_width:2 * third_width +
-                      min_width] = cv2.flip(left[:, :min_width], 1)
-            elif self.attributes.mirror_right_level == 3:
-                quarter_width = frame.shape[1] // 4
-                for i in range(4):
-                    if i % 2 == 1:
-                        frame[:, i * quarter_width:(i + 1) * quarter_width] = cv2.flip(
-                            frame[:, i * quarter_width:(i + 1) * quarter_width], 1)
-
-            # Apply mirror up effect
-            if self.attributes.mirror_up:
-                top_half = frame[:frame.shape[0] // 2, :]
-                frame[frame.shape[0] // 2:, :] = cv2.flip(top_half, 0)
-
-            # Apply mirror down effect
-            if self.attributes.mirror_down:
-                bottom_half = frame[frame.shape[0] // 2:, :]
-                frame[:frame.shape[0] // 2, :] = cv2.flip(bottom_half, 0)
-
-            # Apply kaleidoscope effect if enabled
-            if self.attributes.kaleidoscope_segments > 0:
-                frame = self.kaleidoscope_effect(frame)
-
-            # Apply LUT
-            frame = self.apply_lut(frame)
-
-            # Convert frame to ImageTk format
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame_rgb)
-            imgtk = ImageTk.PhotoImage(image=img)
-
-            # Update video label
-            self.video_label.imgtk = imgtk
-            self.video_label.configure(image=imgtk)
-
-            # Update seek slider position
-            self.update_seek_slider()
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        imgtk = ImageTk.PhotoImage(image=Image.fromarray(frame_rgb))
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
+        self.update_seek_slider()
 
     def kaleidoscope_effect(self, frame):
         height, width = frame.shape[:2]
