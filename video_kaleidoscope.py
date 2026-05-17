@@ -2,6 +2,7 @@
 import sys
 from datetime import datetime
 import threading
+import collections
 import tkinter as tk
 from tkinter import OptionMenu, StringVar, Toplevel, Frame, LabelFrame
 import cv2
@@ -158,8 +159,13 @@ class VideoAttributes:
         self.paused = False
         self.pan_x = 0
         self.pan_y = 0
-        self.kaleidoscope_segments = 0  # Set to 0 by default
-        self.brightness = 0  # Set brightness to 0 by default
+        self.kaleidoscope_segments = 0
+        self.brightness = 0
+        self.hue_rotation = 0
+        self.auto_rotate_speed = 0.0
+        self.echo_strength = 0
+        self.pixel_sort_threshold = 0
+        self.edge_glow_intensity = 0
 
 
 class VideoKaleidoscope:
@@ -172,10 +178,13 @@ class VideoKaleidoscope:
         self.attributes = VideoAttributes()
         self.current_frame = None
         self.video_stopped = False
-        self.base_lut = None  # Initialize base LUT
+        self.base_lut = None
         self.modified_lut = cv2.applyColorMap(
             np.arange(256, dtype=np.uint8), cv2.COLORMAP_RAINBOW
-        )  # Default LUT
+        )
+        self.echo_frame = None
+        self.recording = False
+        self.video_writer = None
         self.root = tk.Tk()
         self.root.title("Video Kaleidoscope")
 
@@ -235,6 +244,85 @@ class VideoKaleidoscope:
             self.modified_lut = np.roll(self.modified_lut, 8, axis=0)
         else:
             print("Error: LUT not properly initialized.")
+
+    def set_hue_rotation(self, value):
+        self.attributes.hue_rotation = value
+        if self.attributes.paused:
+            self.apply_effects()
+
+    def set_auto_rotate_speed(self, value):
+        self.attributes.auto_rotate_speed = value
+
+    def set_echo_strength(self, value):
+        self.attributes.echo_strength = value
+        if value == 0:
+            self.echo_frame = None
+
+    def set_pixel_sort_threshold(self, value):
+        self.attributes.pixel_sort_threshold = value
+        if self.attributes.paused:
+            self.apply_effects()
+
+    def set_edge_glow_intensity(self, value):
+        self.attributes.edge_glow_intensity = value
+        if self.attributes.paused:
+            self.apply_effects()
+
+    def toggle_recording(self):
+        if self.recording:
+            self.recording = False
+            if self.video_writer:
+                self.video_writer.release()
+                self.video_writer = None
+                print('Recording saved.')
+            self.record_button.config(text="● REC", fg="red")
+        else:
+            self.recording = True
+            self.video_writer = None  # created on first frame
+            self.record_button.config(text="■ STOP REC", fg="white", bg="red")
+
+    def apply_hue_rotation(self, frame):
+        if self.attributes.hue_rotation == 0:
+            return frame
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.int16)
+        hsv[:, :, 0] = (hsv[:, :, 0] + self.attributes.hue_rotation // 2) % 180
+        return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+    def apply_pixel_sort(self, frame):
+        threshold = self.attributes.pixel_sort_threshold
+        if threshold == 0:
+            return frame
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        result = frame.copy()
+        for y in range(frame.shape[0]):
+            lum = gray[y]
+            idxs = np.where(lum >= threshold)[0]
+            if len(idxs) == 0:
+                continue
+            result[y, idxs] = frame[y, idxs[np.argsort(lum[idxs])]]
+        return result
+
+    def apply_echo(self, frame):
+        strength = self.attributes.echo_strength / 100.0
+        if strength == 0.0:
+            return frame
+        if self.echo_frame is None or self.echo_frame.shape != frame.shape:
+            self.echo_frame = frame.copy()
+            return frame
+        result = cv2.addWeighted(frame, 1.0 - strength, self.echo_frame, strength, 0)
+        self.echo_frame = result.copy()
+        return result
+
+    def apply_edge_glow(self, frame):
+        intensity = self.attributes.edge_glow_intensity
+        if intensity == 0:
+            return frame
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 150)
+        glow = np.zeros_like(frame)
+        glow[:, :, 0] = edges  # B
+        glow[:, :, 1] = edges  # G  → cyan glow (B+G in BGR)
+        return cv2.addWeighted(frame, 1.0, glow, intensity / 100.0, 0)
 
     def cycle_palette_forward(self, event=None):
         if not PALETTE_LUT_NAMES:
@@ -315,7 +403,7 @@ class VideoKaleidoscope:
     def create_control_window(self):
         self.control_window = Toplevel(self.root)
         self.control_window.title("Video Controls")
-        self.control_window.geometry("480x616+200+800")
+        self.control_window.geometry("520x900+200+800")
 
         # Control section for play, pause, etc.
         controls_frame = LabelFrame(self.control_window, text="Controls")
@@ -401,6 +489,11 @@ class VideoKaleidoscope:
             tk.Button(controls_frame, image=icon, command=command).grid(
                 row=2, column=idx, padx=5, pady=5)
 
+        # Record button (4th row)
+        self.record_button = tk.Button(
+            controls_frame, text="● REC", fg="red", command=self.toggle_recording, width=10)
+        self.record_button.grid(row=3, column=0, columnspan=4, padx=5, pady=5, sticky='ew')
+
         # Sliders section
         sliders_frame = LabelFrame(self.control_window, text="Adjustments")
         sliders_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
@@ -425,6 +518,14 @@ class VideoKaleidoscope:
         self.brightness_slider.grid(
             row=0, column=3, sticky="nswe", padx=10, pady=5)
 
+        self.hue_slider = tk.Scale(sliders_frame, from_=359, to=0, orient=tk.VERTICAL,
+                                   label="Hue", command=lambda x: self.set_hue_rotation(int(x)))
+        self.hue_slider.grid(row=0, column=4, sticky="nswe", padx=10, pady=5)
+
+        self.spin_slider = tk.Scale(sliders_frame, from_=5.0, to=-5.0, orient=tk.VERTICAL,
+                                    resolution=0.1, label="Spin", command=lambda x: self.set_auto_rotate_speed(float(x)))
+        self.spin_slider.grid(row=0, column=5, sticky="nswe", padx=10, pady=5)
+
         # Kaleidoscope and LUT section
         kaleidoscope_frame = LabelFrame(self.control_window, text="Effects")
         kaleidoscope_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
@@ -432,6 +533,18 @@ class VideoKaleidoscope:
         self.kaleidoscope_slider = tk.Scale(kaleidoscope_frame, from_=0, to=12, orient=tk.HORIZONTAL,
                                             label="Kaleidoscope", command=lambda x: self.set_kaleidoscope_segments(int(x)))
         self.kaleidoscope_slider.pack(fill=tk.X, padx=5, pady=5)
+
+        self.echo_slider = tk.Scale(kaleidoscope_frame, from_=0, to=95, orient=tk.HORIZONTAL,
+                                    label="Echo Decay", command=lambda x: self.set_echo_strength(int(x)))
+        self.echo_slider.pack(fill=tk.X, padx=5, pady=2)
+
+        self.pixel_sort_slider = tk.Scale(kaleidoscope_frame, from_=0, to=255, orient=tk.HORIZONTAL,
+                                          label="Pixel Sort Threshold", command=lambda x: self.set_pixel_sort_threshold(int(x)))
+        self.pixel_sort_slider.pack(fill=tk.X, padx=5, pady=2)
+
+        self.edge_glow_slider = tk.Scale(kaleidoscope_frame, from_=0, to=100, orient=tk.HORIZONTAL,
+                                         label="Edge Glow", command=lambda x: self.set_edge_glow_intensity(int(x)))
+        self.edge_glow_slider.pack(fill=tk.X, padx=5, pady=2)
 
         # LUT selection dropdown at the bottom
         self.lut_var = StringVar(self.control_window)
@@ -650,12 +763,26 @@ class VideoKaleidoscope:
             frame = cv2.resize(frame, (800, 600))
 
         frame = self._apply_transforms(frame)
+        frame = self.apply_hue_rotation(frame)
         frame = cv2.convertScaleAbs(frame, alpha=1, beta=self.attributes.brightness * 25)
+        frame = self.apply_pixel_sort(frame)
 
         if self.attributes.kaleidoscope_segments > 0:
             frame = self.kaleidoscope_effect(frame)
 
         frame = self.apply_lut(frame)
+        frame = self.apply_echo(frame)
+        frame = self.apply_edge_glow(frame)
+
+        if self.recording:
+            if self.video_writer is None:
+                fh, fw = frame.shape[:2]
+                ts = datetime.now().strftime('%Y%m%d%H%M%S')
+                filename = f'recording-{ts}.avi'
+                self.video_writer = cv2.VideoWriter(
+                    filename, cv2.VideoWriter_fourcc(*'XVID'), 30.0, (fw, fh))
+                print(f'Recording to: {filename}')
+            self.video_writer.write(frame)
 
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(frame_rgb))
@@ -679,6 +806,13 @@ class VideoKaleidoscope:
         return mask
 
     def update_video(self):
+        if self.attributes.auto_rotate_speed != 0.0:
+            self.attributes.rotation_angle = (
+                self.attributes.rotation_angle + self.attributes.auto_rotate_speed) % 360
+            self.rotation_slider.set(self.attributes.rotation_angle)
+            if self.attributes.paused:
+                self.apply_effects()
+
         if self.cap.isOpened() and not self.attributes.paused:
             if self.attributes.reverse_playback_speed > 1.0:
                 current_frame = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
@@ -690,24 +824,36 @@ class VideoKaleidoscope:
                 self.current_frame = frame
                 self.apply_effects()
 
-        # Schedule the next update
         self.root.after(
             int(1000 / (30 * self.attributes.playback_speed)), self.update_video)
 
     def reset(self):
-        # Reset all video attributes to their default values
         self.attributes = VideoAttributes()
-        # Reset LUT to None
+        self.echo_frame = None
+        self.palette_index = -1
         self.lut_var.set("None")
         self.set_lut("None")
-        # Reset all sliders to their default values
-        for slider in [self.zoom_slider, self.playback_speed_slider, self.brightness_slider, self.kaleidoscope_slider, self.rotation_slider]:
-            slider.set(0 if slider.cget("label") != "Zoom" else 1)
+        for slider, value in [
+            (self.rotation_slider, 0),
+            (self.zoom_slider, 1),
+            (self.playback_speed_slider, 0),
+            (self.brightness_slider, 0),
+            (self.hue_slider, 0),
+            (self.spin_slider, 0),
+            (self.kaleidoscope_slider, 0),
+            (self.echo_slider, 0),
+            (self.pixel_sort_slider, 0),
+            (self.edge_glow_slider, 0),
+        ]:
+            slider.set(value)
+        self.record_button.config(text="● REC", fg="red", bg=self.control_window.cget("bg"))
         if self.attributes.paused:
             self.apply_effects()
 
     def exit_program(self):
         self.cap.release()
+        if self.video_writer:
+            self.video_writer.release()
         self.root.destroy()
 
 
