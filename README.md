@@ -82,7 +82,7 @@ The main window shows the video output with a seek bar. A separate **Video Contr
 | Slider | Range | Effect |
 |--------|-------|--------|
 | Rotation | 0–359° | Rotation angle |
-| Zoom | −50 to +50 | Centre = 1× no zoom. Right = zoom in up to 6×. Left = same zoom level with both axes flipped (mirror-through effect). |
+| Zoom | −50 to +50 | Centre = 1× no zoom. Right = zoom in up to 6×. Left = zoom out; extra space is filled with a seamlessly mirror-tiled copy of the frame (abcdeedcba pattern). |
 | Speed | −4 to +4 | Playback speed. Positive = forward, negative = reverse. Video loops continuously. |
 | Brightness | −4 to +4 | Brightness offset |
 | Hue Rotation | 0–359 | Hue shift applied in HSV space — rotates all colors without touching brightness or saturation |

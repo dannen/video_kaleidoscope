@@ -350,17 +350,34 @@ class VideoKaleidoscope:
         """Apply zoom/pan, rotation, flip, and all mirror effects to frame, preserving its dimensions."""
         h, w = frame.shape[:2]
 
-        # Zoom and pan (negative zoom_factor = same crop + flip both axes)
+        # Zoom and pan:
+        #   zoom_factor > 0: crop center and resize up (zoom in)
+        #   zoom_factor < 0: mirror-tile outward and resize down (zoom out, abcdeedcba)
         zoom = abs(self.attributes.zoom_factor)
-        cx = w // 2 + self.attributes.pan_x
-        cy = h // 2 + self.attributes.pan_y
-        nw = int(w / zoom)
-        nh = int(h / zoom)
-        x1, y1 = max(0, cx - nw // 2), max(0, cy - nh // 2)
-        x2, y2 = min(w, cx + nw // 2), min(h, cy + nh // 2)
-        frame = cv2.resize(frame[y1:y2, x1:x2], (w, h))
-        if self.attributes.zoom_factor < 0:
-            frame = cv2.flip(frame, -1)
+        if self.attributes.zoom_factor >= 0:
+            cx = w // 2 + self.attributes.pan_x
+            cy = h // 2 + self.attributes.pan_y
+            nw = max(1, int(w / zoom))
+            nh = max(1, int(h / zoom))
+            x1 = max(0, cx - nw // 2)
+            y1 = max(0, cy - nh // 2)
+            x2 = min(w, x1 + nw)
+            y2 = min(h, y1 + nh)
+            frame = cv2.resize(frame[y1:y2, x1:x2], (w, h))
+        else:
+            target_w = int(w * zoom)
+            target_h = int(h * zoom)
+            pad_x = (target_w - w) // 2 + abs(self.attributes.pan_x) + 1
+            pad_y = (target_h - h) // 2 + abs(self.attributes.pan_y) + 1
+            padded = np.pad(frame, ((pad_y, pad_y), (pad_x, pad_x), (0, 0)), mode='reflect')
+            ph, pw = padded.shape[:2]
+            cx = pw // 2 + self.attributes.pan_x
+            cy = ph // 2 + self.attributes.pan_y
+            x1 = max(0, cx - target_w // 2)
+            y1 = max(0, cy - target_h // 2)
+            x2 = min(pw, x1 + target_w)
+            y2 = min(ph, y1 + target_h)
+            frame = cv2.resize(padded[y1:y2, x1:x2], (w, h))
 
         # Rotation
         if self.attributes.rotation_angle != 0:
@@ -555,7 +572,7 @@ class VideoKaleidoscope:
 
         # Zoom: centre (0) = 1× no flip; right = zoom in; left = zoom in + flip both axes
         self.zoom_slider = tk.Scale(sliders_frame, from_=-50, to=50, orient=tk.HORIZONTAL,
-                                    label="Zoom  (negative = flip)",
+                                    label="Zoom  (+ = in, − = mirror-tile out)",
                                     command=lambda x: self.set_zoom_factor(float(x)))
         self.zoom_slider.pack(fill=tk.X, padx=5, pady=2)
 
