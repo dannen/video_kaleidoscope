@@ -82,9 +82,9 @@ The main window shows the video output with a seek bar. A separate **Video Contr
 | Slider | Range | Effect |
 |--------|-------|--------|
 | Rotation | 0–359° | Rotation angle |
-| Zoom | −50 to +50 | Centre = 1× no zoom. Right = zoom in up to 6×. Left = zoom out; extra space is filled with a seamlessly mirror-tiled copy of the frame (abcdeedcba pattern). |
-| Speed | −4 to +4 | Playback speed. Positive = forward, negative = reverse. Video loops continuously. |
-| Brightness | −4 to +4 | Brightness offset |
+| Zoom | −50 to +50 | Centre = 1× no zoom. Right = zoom in up to 6×. Left = zoom out; extra space is filled with a seamlessly mirror-tiled copy of the frame (abcdeedcba pattern). A **Zoom Target** checkbox to the right of the slider opens a 200×200 live preview window showing the raw unprocessed video cropped around the current pan target — useful for aiming the pan position when zoomed in. |
+| Speed | −4 to +4 | Playback speed. Positive = forward, negative = reverse. Defaults to 1×. Video loops continuously. |
+| Brightness | −20 to +20 | Brightness offset. A **Lock** button to the right freezes this value. When unlocked, brightness automatically drops to −3 whenever the Kaleidoscope slider exceeds 2, and returns to 0 when it drops back to 2 or below. |
 | Hue Rotation | 0–359 | Hue shift applied in HSV space — rotates all colors without touching brightness or saturation |
 | Auto Spin | −5 to +5 °/frame | Auto-rotate speed; increments the rotation angle every frame, works while paused |
 
@@ -94,10 +94,10 @@ The main window shows the video output with a seek bar. A separate **Video Contr
 
 | Control | Range | Effect |
 |---------|-------|--------|
-| Kaleidoscope | 0–12 segments | Blends N rotated copies of the frame for a rotational symmetry effect |
+| Kaleidoscope | 1–12 segments | Blends N rotated copies of the frame for a rotational symmetry effect. Values 1 and off are identical; the effect becomes visible from 2 upward. |
 | Echo Decay | 0–95 | Feedback trail strength — each frame blends with the previous output at this percentage; high values create long psychedelic trails |
 | Pixel Sort Threshold | 0–255 | Pixels in each row with luminance ≥ threshold are sorted by brightness, creating horizontal streaking and glitch art |
-| Edge Glow | 0–100 | Canny edge detection overlaid as a cyan neon glow |
+| Edge Glow | 0–100 | Canny edge detection overlaid as a cyan neon glow; the effect is masked away at the frame border so the video edge itself does not glow |
 | LUT dropdown | — | Apply a color map to the video; includes built-in OpenCV colormaps, custom `.lut` files from `./luts/`, and any palettes loaded from `./color_palletes/` |
 
 ---
@@ -121,8 +121,11 @@ Snapshots and recordings are saved to the working directory and are excluded fro
 
 ## Keyboard Shortcuts
 
+All shortcuts work regardless of which window has focus.
+
 | Key | Action |
 |-----|--------|
+| `Space` | Toggle play / pause |
 | `i` | Toggle color inversion — photo-negative effect on the final frame |
 | `I` | Invert the current LUT (flip the color map) |
 | `[` | Shift LUT colors left by 8 steps (cycles the gradient) |
@@ -137,19 +140,22 @@ Snapshots and recordings are saved to the working directory and are excluded fro
 When processing each frame the effects are applied in this sequence:
 
 1. Resize to display (max 800 × 600)
-2. Zoom / pan crop
-3. Rotation
-4. Flip (horizontal / vertical)
-5. Mirror (left, right, up, down)
-6. Hue rotation
-7. Brightness
-8. Pixel sort
-9. Kaleidoscope blend
-10. LUT colormap
-11. Echo feedback
-12. Edge glow
-13. Write to recording file (if active)
-14. Display
+2. Zoom target preview sampled here (raw frame, no effects)
+3. Zoom in crop / pan (positive zoom only)
+4. Rotation
+5. Flip (horizontal / vertical)
+6. Mirror (left, right, up, down)
+7. Hue rotation
+8. Brightness
+9. Pixel sort
+10. Kaleidoscope blend
+11. LUT colormap
+12. Echo feedback
+13. Edge glow
+14. Color inversion
+15. Zoom out mirror-tile (negative zoom) — applied last so all effects are visible in the tiled result
+16. Write to recording file (if active)
+17. Display
 
 ---
 
