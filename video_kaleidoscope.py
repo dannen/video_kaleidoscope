@@ -334,6 +334,11 @@ class VideoKaleidoscope:
             return frame
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
+        # Suppress the frame border so the video edge itself doesn't glow
+        edges[:3, :] = 0
+        edges[-3:, :] = 0
+        edges[:, :3] = 0
+        edges[:, -3:] = 0
         glow = np.zeros_like(frame)
         glow[:, :, 0] = edges  # B
         glow[:, :, 1] = edges  # G  → cyan glow (B+G in BGR)
