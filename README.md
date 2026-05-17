@@ -4,9 +4,35 @@ A real-time video art tool built with Python, OpenCV, and Tkinter. Load any vide
 
 ## Requirements
 
+Python 3.8+ and the following packages:
+
 ```sh
 pip install opencv-python numpy Pillow
 ```
+
+### Setting up a virtual environment (recommended)
+
+Using a venv keeps the dependencies isolated from your system Python:
+
+```sh
+# Create the virtual environment (one time)
+python3 -m venv .venv
+
+# Activate it
+source .venv/bin/activate        # macOS / Linux
+.venv\Scripts\activate           # Windows
+
+# Install dependencies
+pip install opencv-python numpy Pillow
+
+# Run the app (venv must be active)
+python video_kaleidoscope.py <video_path>
+
+# When you're done, deactivate
+deactivate
+```
+
+Add `.venv/` to your `.gitignore` if you haven't already so the environment folder isn't committed.
 
 ## Usage
 
