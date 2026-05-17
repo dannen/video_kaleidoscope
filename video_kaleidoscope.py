@@ -74,6 +74,25 @@ for filename in os.listdir(lut_directory):
         except Exception as e:
             print(f"Unexpected error loading LUT file {filename}: {e}")
 
+# Load palette LUTs from color_palletes directory (not tracked in git)
+PALETTE_LUT_NAMES = []
+palette_directory = "./color_palletes"
+if os.path.isdir(palette_directory):
+    for filename in sorted(os.listdir(palette_directory)):
+        if filename.lower().endswith('.png'):
+            filepath = os.path.join(palette_directory, filename)
+            try:
+                img = Image.open(filepath).convert('RGB')
+                w, h = img.size
+                middle_row = img.crop((0, h // 2, w, h // 2 + 1)).resize((256, 1), Image.LANCZOS)
+                lut_array = np.array(middle_row, dtype=np.uint8).reshape((256, 1, 3))
+                lut_name = f"PAL_{os.path.splitext(filename)[0].upper()}"
+                LUTS[lut_name] = lut_array
+                PALETTE_LUT_NAMES.append(lut_name)
+                print(f"Loaded palette LUT: {lut_name}")
+            except Exception as e:
+                print(f"Error loading palette {filename}: {e}")
+
 
 def create_custom_lut(color, color_gradient_step):
     """Creates a custom LUT using predefined color data."""
@@ -177,6 +196,11 @@ class VideoKaleidoscope:
         self.root.bind("[", self.shift_lut_left)
         self.root.bind("]", self.shift_lut_right)
 
+        # Palette cycling (p = next, P = previous)
+        self.palette_index = -1
+        self.root.bind("p", self.cycle_palette_forward)
+        self.root.bind("P", self.cycle_palette_backward)
+
         # Start updating video
         self.update_video()
 
@@ -211,6 +235,22 @@ class VideoKaleidoscope:
             self.modified_lut = np.roll(self.modified_lut, 8, axis=0)
         else:
             print("Error: LUT not properly initialized.")
+
+    def cycle_palette_forward(self, event=None):
+        if not PALETTE_LUT_NAMES:
+            return
+        self.palette_index = (self.palette_index + 1) % len(PALETTE_LUT_NAMES)
+        name = PALETTE_LUT_NAMES[self.palette_index]
+        self.lut_var.set(name)
+        self.set_lut(name)
+
+    def cycle_palette_backward(self, event=None):
+        if not PALETTE_LUT_NAMES:
+            return
+        self.palette_index = (self.palette_index - 1) % len(PALETTE_LUT_NAMES)
+        name = PALETTE_LUT_NAMES[self.palette_index]
+        self.lut_var.set(name)
+        self.set_lut(name)
 
     def _apply_transforms(self, frame):
         """Apply zoom/pan, rotation, flip, and all mirror effects to frame, preserving its dimensions."""
