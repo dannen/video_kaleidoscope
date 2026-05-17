@@ -676,12 +676,12 @@ class VideoKaleidoscope:
             self.brightness_lock_btn.config(text="Lock", relief=tk.RAISED)
             # Apply auto rule immediately on unlock
             if self.attributes.kaleidoscope_segments > 2:
-                self.brightness_slider.set(-2)
+                self.brightness_slider.set(-3)
 
     def set_kaleidoscope_segments(self, segments):
         self.attributes.kaleidoscope_segments = segments
         if not self.brightness_lock:
-            self.brightness_slider.set(-2 if segments > 2 else 0)
+            self.brightness_slider.set(-3 if segments > 2 else 0)
         if self.attributes.paused:
             self.apply_effects()
 
