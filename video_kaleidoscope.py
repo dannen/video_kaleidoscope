@@ -201,6 +201,8 @@ class VideoKaleidoscope:
                                     label="Video Position", command=self.set_video_position)
         self.seek_slider.pack(fill=tk.X)
 
+        self.brightness_lock = False
+
         # Set up controls in separate windows
         self.create_control_window()
 
@@ -586,10 +588,15 @@ class VideoKaleidoscope:
         self.playback_speed_slider.set(1.0)
         self.playback_speed_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        self.brightness_slider = tk.Scale(sliders_frame, from_=-4, to=4, orient=tk.HORIZONTAL,
+        brightness_row = tk.Frame(sliders_frame)
+        brightness_row.pack(fill=tk.X, padx=5, pady=2)
+        self.brightness_slider = tk.Scale(brightness_row, from_=-20, to=20, orient=tk.HORIZONTAL,
                                           label="Brightness",
                                           command=lambda x: self.set_brightness(int(x)))
-        self.brightness_slider.pack(fill=tk.X, padx=5, pady=2)
+        self.brightness_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.brightness_lock_btn = tk.Button(brightness_row, text="Lock", width=6,
+                                             command=self.toggle_brightness_lock)
+        self.brightness_lock_btn.pack(side=tk.LEFT, anchor='s', padx=(5, 0), pady=(0, 4))
 
         self.hue_slider = tk.Scale(sliders_frame, from_=0, to=359, orient=tk.HORIZONTAL,
                                    label="Hue Rotation",
@@ -653,8 +660,20 @@ class VideoKaleidoscope:
             position = int((current_frame / total_frames) * 1000)
             self.seek_slider.set(position)
 
+    def toggle_brightness_lock(self):
+        self.brightness_lock = not self.brightness_lock
+        if self.brightness_lock:
+            self.brightness_lock_btn.config(text="Locked", relief=tk.SUNKEN)
+        else:
+            self.brightness_lock_btn.config(text="Lock", relief=tk.RAISED)
+            # Apply auto rule immediately on unlock
+            if self.attributes.kaleidoscope_segments > 2:
+                self.brightness_slider.set(-2)
+
     def set_kaleidoscope_segments(self, segments):
         self.attributes.kaleidoscope_segments = segments
+        if not self.brightness_lock:
+            self.brightness_slider.set(-2 if segments > 2 else 0)
         if self.attributes.paused:
             self.apply_effects()
 
@@ -917,6 +936,8 @@ class VideoKaleidoscope:
             (self.edge_glow_slider, 0),
         ]:
             slider.set(value)
+        self.brightness_lock = False
+        self.brightness_lock_btn.config(text="Lock", relief=tk.RAISED)
         self.record_button.config(text="● REC", fg="red", bg=self.control_window.cget("bg"))
         if self.attributes.paused:
             self.apply_effects()
