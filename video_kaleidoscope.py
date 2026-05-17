@@ -344,14 +344,17 @@ class VideoKaleidoscope:
         """Apply zoom/pan, rotation, flip, and all mirror effects to frame, preserving its dimensions."""
         h, w = frame.shape[:2]
 
-        # Zoom and pan
+        # Zoom and pan (negative zoom_factor = same crop + flip both axes)
+        zoom = abs(self.attributes.zoom_factor)
         cx = w // 2 + self.attributes.pan_x
         cy = h // 2 + self.attributes.pan_y
-        nw = int(w / self.attributes.zoom_factor)
-        nh = int(h / self.attributes.zoom_factor)
+        nw = int(w / zoom)
+        nh = int(h / zoom)
         x1, y1 = max(0, cx - nw // 2), max(0, cy - nh // 2)
         x2, y2 = min(w, cx + nw // 2), min(h, cy + nh // 2)
         frame = cv2.resize(frame[y1:y2, x1:x2], (w, h))
+        if self.attributes.zoom_factor < 0:
+            frame = cv2.flip(frame, -1)
 
         # Rotation
         if self.attributes.rotation_angle != 0:
@@ -498,33 +501,36 @@ class VideoKaleidoscope:
         sliders_frame = LabelFrame(self.control_window, text="Adjustments")
         sliders_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
 
-        # Slider for rotation angle
-        self.rotation_slider = tk.Scale(sliders_frame, from_=0, to=359.5, orient=tk.VERTICAL,
-                                        resolution=0.5, label="Rot", command=lambda x: self.set_rotation_angle(float(x)), )
-        self.rotation_slider.grid(
-            row=0, column=0, sticky="nswe", padx=10, pady=5)
+        self.rotation_slider = tk.Scale(sliders_frame, from_=0, to=359.5, orient=tk.HORIZONTAL,
+                                        resolution=0.5, label="Rotation",
+                                        command=lambda x: self.set_rotation_angle(float(x)))
+        self.rotation_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        self.zoom_slider = tk.Scale(sliders_frame, from_=1, to=50, orient=tk.VERTICAL,
-                                    label="Zoom", command=lambda x: self.set_zoom_factor(float(x) / 10), )
-        self.zoom_slider.grid(row=0, column=1, sticky="nswe", padx=10, pady=5)
+        # Zoom: centre (0) = 1× no flip; right = zoom in; left = zoom in + flip both axes
+        self.zoom_slider = tk.Scale(sliders_frame, from_=-50, to=50, orient=tk.HORIZONTAL,
+                                    label="Zoom  (negative = flip)",
+                                    command=lambda x: self.set_zoom_factor(float(x)))
+        self.zoom_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        self.playback_speed_slider = tk.Scale(sliders_frame, from_=4.0, to=-4.0, orient=tk.VERTICAL,
-                                              label="Speed", command=lambda x: self.set_playback_speed(float(x)))
-        self.playback_speed_slider.grid(
-            row=0, column=2, sticky="nswe", padx=10, pady=5)
+        self.playback_speed_slider = tk.Scale(sliders_frame, from_=-4.0, to=4.0, orient=tk.HORIZONTAL,
+                                              resolution=0.1, label="Speed  (negative = reverse)",
+                                              command=lambda x: self.set_playback_speed(float(x)))
+        self.playback_speed_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        self.brightness_slider = tk.Scale(sliders_frame, from_=4, to=-4, orient=tk.VERTICAL,
-                                          label="Bright", command=lambda x: self.set_brightness(int(x)))
-        self.brightness_slider.grid(
-            row=0, column=3, sticky="nswe", padx=10, pady=5)
+        self.brightness_slider = tk.Scale(sliders_frame, from_=-4, to=4, orient=tk.HORIZONTAL,
+                                          label="Brightness",
+                                          command=lambda x: self.set_brightness(int(x)))
+        self.brightness_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        self.hue_slider = tk.Scale(sliders_frame, from_=359, to=0, orient=tk.VERTICAL,
-                                   label="Hue", command=lambda x: self.set_hue_rotation(int(x)))
-        self.hue_slider.grid(row=0, column=4, sticky="nswe", padx=10, pady=5)
+        self.hue_slider = tk.Scale(sliders_frame, from_=0, to=359, orient=tk.HORIZONTAL,
+                                   label="Hue Rotation",
+                                   command=lambda x: self.set_hue_rotation(int(x)))
+        self.hue_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        self.spin_slider = tk.Scale(sliders_frame, from_=5.0, to=-5.0, orient=tk.VERTICAL,
-                                    resolution=0.1, label="Spin", command=lambda x: self.set_auto_rotate_speed(float(x)))
-        self.spin_slider.grid(row=0, column=5, sticky="nswe", padx=10, pady=5)
+        self.spin_slider = tk.Scale(sliders_frame, from_=-5.0, to=5.0, orient=tk.HORIZONTAL,
+                                    resolution=0.1, label="Auto Spin  (°/frame)",
+                                    command=lambda x: self.set_auto_rotate_speed(float(x)))
+        self.spin_slider.pack(fill=tk.X, padx=5, pady=2)
 
         # Kaleidoscope and LUT section
         kaleidoscope_frame = LabelFrame(self.control_window, text="Effects")
@@ -676,13 +682,16 @@ class VideoKaleidoscope:
             self.attributes.playback_speed = max(0.05, min(speed, 16.0))
             self.attributes.reverse_playback_speed = 1.0
 
-    def set_zoom_factor(self, zoom):
-        self.attributes.zoom_factor = max(1.0, zoom)
+    def set_zoom_factor(self, value):
+        # Slider -50..50: magnitude maps to 1.0 + abs(value)/10 zoom;
+        # negative values additionally flip both axes.
+        zoom = 1.0 + abs(value) / 10.0
+        self.attributes.zoom_factor = zoom if value >= 0 else -zoom
         if self.attributes.paused:
             self.apply_effects()
 
     def pan_video(self, delta_x, delta_y):
-        if self.attributes.zoom_factor > 1.0:
+        if abs(self.attributes.zoom_factor) > 1.0:
             self.attributes.pan_x += delta_x
             self.attributes.pan_y += delta_y
             if self.attributes.paused:
@@ -835,8 +844,8 @@ class VideoKaleidoscope:
         self.set_lut("None")
         for slider, value in [
             (self.rotation_slider, 0),
-            (self.zoom_slider, 1),
-            (self.playback_speed_slider, 0),
+            (self.zoom_slider, 0),
+            (self.playback_speed_slider, 1.0),
             (self.brightness_slider, 0),
             (self.hue_slider, 0),
             (self.spin_slider, 0),

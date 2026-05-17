@@ -85,12 +85,12 @@ The main window shows the video output with a seek bar. A separate **Video Contr
 
 | Slider | Range | Effect |
 |--------|-------|--------|
-| Rot | 0–359° | Rotation angle |
-| Zoom | 0.1–5× | Zoom level |
-| Speed | −4 to +4 | Playback speed / direction |
-| Bright | −4 to +4 | Brightness offset |
-| Hue | 0–359 | Hue shift applied in HSV space — rotates all colors without touching brightness or saturation |
-| Spin | −5 to +5 °/frame | Auto-rotate speed; increments the rotation angle every frame, works while paused |
+| Rotation | 0–359° | Rotation angle |
+| Zoom | −50 to +50 | Centre = 1× (no zoom). Right = zoom in (1×–6×). Left = same zoom level but frame is flipped on both axes first. |
+| Speed | −4 to +4 | Playback speed. Positive = forward, negative = reverse, centre = very slow. |
+| Brightness | −4 to +4 | Brightness offset |
+| Hue Rotation | 0–359 | Hue shift applied in HSV space — rotates all colors without touching brightness or saturation |
+| Auto Spin | −5 to +5 °/frame | Auto-rotate speed; increments the rotation angle every frame, works while paused |
 
 ---
 
