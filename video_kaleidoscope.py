@@ -787,13 +787,13 @@ class VideoKaleidoscope:
         h, w = frame.shape[:2]
         cx = max(0, min(w, w // 2 + self.attributes.pan_x))
         cy = max(0, min(h, h // 2 + self.attributes.pan_y))
-        half = 50
+        half = 100
         x1, x2 = max(0, cx - half), min(w, cx + half)
         y1, y2 = max(0, cy - half), min(h, cy + half)
         crop = frame[y1:y2, x1:x2]
         if crop.size == 0:
             return
-        crop = cv2.resize(crop, (100, 100))
+        crop = cv2.resize(crop, (200, 200))
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)))
         self.zoom_target_label.imgtk = imgtk
         self.zoom_target_label.configure(image=imgtk)
