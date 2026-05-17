@@ -40,7 +40,7 @@ Add `.venv/` to your `.gitignore` if you haven't already so the environment fold
 python video_kaleidoscope.py <video_path>
 ```
 
-The main window shows the video output with a seek bar. A separate **Video Controls** window holds all the sliders and buttons.
+The main window shows the video output with a seek bar. A separate **Video Controls** window holds all the sliders and buttons. The controls window has a scrollbar on the right — drag it or use the mouse wheel to reach sections below the visible area. The video loops continuously by default.
 
 ---
 
@@ -70,24 +70,20 @@ The main window shows the video output with a seek bar. A separate **Video Contr
 | Flip Both | Flip horizontally and vertically together |
 | Mirror Up | Copy the top half onto the bottom half |
 | Mirror Down | Copy the bottom half onto the top half |
-| Mirror Left | Cycle through left-side mirror levels: off → center split → thirds → quarters |
-| Mirror Right | Cycle through right-side mirror levels: off → center split → thirds → quarters |
+| Mirror Left | Cycle left-side mirror: off → center split → thirds → quarters |
+| Mirror Right | Cycle right-side mirror: off → center split → thirds → quarters |
 
-**Rot slider** — rotation angle, 0–359°, with 0.5° resolution.
-
-**Zoom slider** — zoom factor from 1× to 5×.
-
-**Pan controls** — Up / Down / Left / Right / Center buttons; active only when zoomed in.
+**Pan controls** — Up / Down / Left / Right / Center buttons embedded in the top-right of the Controls section; active only when zoomed in.
 
 ---
 
-### Adjustments Panel (vertical sliders)
+### Adjustments Panel (horizontal sliders)
 
 | Slider | Range | Effect |
 |--------|-------|--------|
 | Rotation | 0–359° | Rotation angle |
-| Zoom | −50 to +50 | Centre = 1× (no zoom). Right = zoom in (1×–6×). Left = same zoom level but frame is flipped on both axes first. |
-| Speed | −4 to +4 | Playback speed. Positive = forward, negative = reverse, centre = very slow. |
+| Zoom | −50 to +50 | Centre = 1× no zoom. Right = zoom in up to 6×. Left = same zoom level with both axes flipped (mirror-through effect). |
+| Speed | −4 to +4 | Playback speed. Positive = forward, negative = reverse. Video loops continuously. |
 | Brightness | −4 to +4 | Brightness offset |
 | Hue Rotation | 0–359 | Hue shift applied in HSV space — rotates all colors without touching brightness or saturation |
 | Auto Spin | −5 to +5 °/frame | Auto-rotate speed; increments the rotation angle every frame, works while paused |
