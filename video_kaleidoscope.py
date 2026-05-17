@@ -207,6 +207,7 @@ class VideoKaleidoscope:
         self.create_control_window()
 
         # Key bindings active regardless of which window has focus
+        self.root.bind_all("<space>", lambda e: self.toggle_pause())
         self.root.bind_all("i", self.toggle_color_invert)
         self.root.bind_all("I", self.invert_lut)
         self.root.bind_all("[", self.shift_lut_left)
