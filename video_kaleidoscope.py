@@ -206,16 +206,16 @@ class VideoKaleidoscope:
         # Set up controls in separate windows
         self.create_control_window()
 
-        # Add key bindings for LUT manipulations
-        self.root.bind("i", self.toggle_color_invert)
-        self.root.bind("I", self.invert_lut)
-        self.root.bind("[", self.shift_lut_left)
-        self.root.bind("]", self.shift_lut_right)
+        # Key bindings active regardless of which window has focus
+        self.root.bind_all("i", self.toggle_color_invert)
+        self.root.bind_all("I", self.invert_lut)
+        self.root.bind_all("[", self.shift_lut_left)
+        self.root.bind_all("]", self.shift_lut_right)
 
-        # Palette cycling (p = next, P = previous)
+        # Palette / LUT cycling (p = next, P = previous)
         self.palette_index = -1
-        self.root.bind("p", self.cycle_palette_forward)
-        self.root.bind("P", self.cycle_palette_backward)
+        self.root.bind_all("p", self.cycle_palette_forward)
+        self.root.bind_all("P", self.cycle_palette_backward)
 
         # Start updating video
         self.update_video()
