@@ -406,7 +406,7 @@ class VideoKaleidoscope:
     def create_control_window(self):
         self.control_window = Toplevel(self.root)
         self.control_window.title("Video Controls")
-        self.control_window.geometry("520x900+200+800")
+        self.control_window.geometry("520x700+200+200")
 
         # Control section for play, pause, etc.
         controls_frame = LabelFrame(self.control_window, text="Controls")
@@ -492,10 +492,22 @@ class VideoKaleidoscope:
             tk.Button(controls_frame, image=icon, command=command).grid(
                 row=2, column=idx, padx=5, pady=5)
 
-        # Record button (4th row)
+        # Record button (4th row, left side)
         self.record_button = tk.Button(
             controls_frame, text="● REC", fg="red", command=self.toggle_recording, width=10)
-        self.record_button.grid(row=3, column=0, columnspan=4, padx=5, pady=5, sticky='ew')
+        self.record_button.grid(row=3, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
+
+        # Pan controls — cross layout on the right side of the Controls grid
+        tk.Button(controls_frame, image=pan_up_icon,
+                  command=lambda: self.pan_video(0, -10)).grid(row=0, column=6, padx=2, pady=2)
+        tk.Button(controls_frame, image=pan_left_icon,
+                  command=lambda: self.pan_video(-10, 0)).grid(row=1, column=5, padx=2, pady=2)
+        tk.Button(controls_frame, image=pan_center_icon,
+                  command=self.center_pan).grid(row=1, column=6, padx=2, pady=2)
+        tk.Button(controls_frame, image=pan_right_icon,
+                  command=lambda: self.pan_video(10, 0)).grid(row=1, column=7, padx=2, pady=2)
+        tk.Button(controls_frame, image=pan_down_icon,
+                  command=lambda: self.pan_video(0, 10)).grid(row=2, column=6, padx=2, pady=2)
 
         # Sliders section
         sliders_frame = LabelFrame(self.control_window, text="Adjustments")
@@ -560,23 +572,7 @@ class VideoKaleidoscope:
             kaleidoscope_frame, self.lut_var, *luts, command=self.set_lut)
         self.lut_menu.pack(fill=tk.X, pady=5)
 
-        # Pan controls section
-        pan_frame = LabelFrame(self.control_window, text="Pan Controls")
-        pan_frame.pack(fill=tk.X, padx=5, pady=5, ipadx=10)
-
-        # Pan controls arranged in a plus shape
-        tk.Button(pan_frame, image=pan_up_icon, command=lambda: self.pan_video(
-            0, -10)).grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_left_icon, command=lambda: self.pan_video(-10, 0)
-                  ).grid(row=1, column=0, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_center_icon, command=self.center_pan).grid(
-            row=1, column=1, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_right_icon, command=lambda: self.pan_video(
-            10, 0)).grid(row=1, column=2, padx=5, pady=5)
-        tk.Button(pan_frame, image=pan_down_icon, command=lambda: self.pan_video(
-            0, 10)).grid(row=2, column=1, padx=5, pady=5)
-
-        # Keep references to the images to prevent garbage collection
+        # Keep references to prevent garbage collection
         self.icons = [icon for icon, _ in top_row_controls +
                       second_row_controls + third_row_controls]
         self.icons += [pan_up_icon, pan_down_icon,
