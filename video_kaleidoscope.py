@@ -189,6 +189,8 @@ class VideoKaleidoscope:
         self.echo_frame = None
         self.recording = False
         self.video_writer = None
+        self.zoom_target_window = None
+        self.zoom_target_label = None
         self.root = tk.Tk()
         self.root.title("Video Kaleidoscope")
 
@@ -577,11 +579,16 @@ class VideoKaleidoscope:
                                         command=lambda x: self.set_rotation_angle(float(x)))
         self.rotation_slider.pack(fill=tk.X, padx=5, pady=2)
 
-        # Zoom: centre (0) = 1× no flip; right = zoom in; left = zoom in + flip both axes
-        self.zoom_slider = tk.Scale(sliders_frame, from_=-50, to=50, orient=tk.HORIZONTAL,
+        zoom_row = tk.Frame(sliders_frame)
+        zoom_row.pack(fill=tk.X, padx=5, pady=2)
+        self.zoom_slider = tk.Scale(zoom_row, from_=-50, to=50, orient=tk.HORIZONTAL,
                                     label="Zoom  (+ = in, − = mirror-tile out)",
                                     command=lambda x: self.set_zoom_factor(float(x)))
-        self.zoom_slider.pack(fill=tk.X, padx=5, pady=2)
+        self.zoom_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.zoom_target_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(zoom_row, text="Zoom\nTarget", variable=self.zoom_target_var,
+                       command=self.toggle_zoom_target).pack(side=tk.LEFT, anchor='s',
+                                                             padx=(5, 0), pady=(0, 4))
 
         self.playback_speed_slider = tk.Scale(sliders_frame, from_=-4.0, to=4.0, orient=tk.HORIZONTAL,
                                               resolution=0.1, label="Speed  (negative = reverse)",
@@ -756,6 +763,41 @@ class VideoKaleidoscope:
             self.attributes.playback_speed = max(0.05, min(speed, 16.0))
             self.attributes.reverse_playback_speed = 1.0
 
+    def toggle_zoom_target(self):
+        if self.zoom_target_var.get():
+            self.zoom_target_window = Toplevel(self.root)
+            self.zoom_target_window.title("Zoom Target")
+            self.zoom_target_window.resizable(False, False)
+            self.zoom_target_window.protocol("WM_DELETE_WINDOW", self._close_zoom_target)
+            self.zoom_target_label = tk.Label(self.zoom_target_window, bd=0)
+            self.zoom_target_label.pack()
+        else:
+            self._close_zoom_target()
+
+    def _close_zoom_target(self):
+        self.zoom_target_var.set(False)
+        if self.zoom_target_window:
+            self.zoom_target_window.destroy()
+            self.zoom_target_window = None
+            self.zoom_target_label = None
+
+    def update_zoom_target_preview(self, frame):
+        if not self.zoom_target_var.get() or self.zoom_target_label is None:
+            return
+        h, w = frame.shape[:2]
+        cx = max(0, min(w, w // 2 + self.attributes.pan_x))
+        cy = max(0, min(h, h // 2 + self.attributes.pan_y))
+        half = 50
+        x1, x2 = max(0, cx - half), min(w, cx + half)
+        y1, y2 = max(0, cy - half), min(h, cy + half)
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:
+            return
+        crop = cv2.resize(crop, (100, 100))
+        imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)))
+        self.zoom_target_label.imgtk = imgtk
+        self.zoom_target_label.configure(image=imgtk)
+
     def set_zoom_factor(self, value):
         # Slider -50..50: magnitude maps to 1.0 + abs(value)/10 zoom;
         # negative values additionally flip both axes.
@@ -844,6 +886,8 @@ class VideoKaleidoscope:
 
         if w > 800 or h > 600:
             frame = cv2.resize(frame, (800, 600))
+
+        self.update_zoom_target_preview(frame)
 
         frame = self._apply_transforms(frame)
         frame = self.apply_hue_rotation(frame)
@@ -947,6 +991,8 @@ class VideoKaleidoscope:
         self.cap.release()
         if self.video_writer:
             self.video_writer.release()
+        if self.zoom_target_window:
+            self.zoom_target_window.destroy()
         self.root.destroy()
 
 
